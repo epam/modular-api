@@ -21,6 +21,6 @@ swagger-ui-py==21.12.8
 tenacity==8.2.3
 tinydb==4.7.0
 typing_extensions==4.7.1
-urllib3==1.26.16
+urllib3==1.26.18
 wcwidth==0.2.6
 modular_sdk>=3.1.0,<4.0.0
