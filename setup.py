@@ -20,7 +20,7 @@ setup(
         'Beaker==1.12.1',
         'typing_extensions==4.7.1',
         'pynamodb==5.3.2',
-        'Pillow==10.0.0',
+        'Pillow==10.0.1',
         'modular-cli-sdk>=2.0.0,<3.0.0',
         'modular-sdk>=3.0.0,<4.0.0'
     ],
