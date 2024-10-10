@@ -1,5 +1,14 @@
 CHANGELOG
 
+# [4.0.8] - 2024-09-12
+* Update `modular-sdk` from `>=5.0.0,<6.0.0` to `==6.0.1b2`
+
+# [4.0.7] - 2024-08-05
+* Fix `modular get_meta` to match new `ModularUser` `meta` implementation
+
+# [4.0.6] - 2024-08-02
+* Update `set_meta_attribute` and `update_meta_attribute` commands to support a
+JSON object as `aux_data` in the `ModularUser` field `meta`
 
 # [4.0.5] - 2024-06-25
 * Update library version from `modular-sdk==5.1.1` to `modular-sdk>=5.1.3,<6.0.0`
