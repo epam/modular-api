@@ -149,7 +149,7 @@ class PermissionsService:
             username: str,
             password: str | None = None,
             token: str | None = None,
-            empty_cache: bool | None = None,
+            empty_cache: bool = False,
     ) -> tuple:
         if not any([password, token]):
             raise ModularApiUnauthorizedException(

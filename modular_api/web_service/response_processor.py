@@ -105,6 +105,8 @@ def extract_and_convert_parameters(request, command_def):
 
 
 def get_group_path(mount_point, group_name):
-    if mount_point in ('/', group_name):
+    if mount_point == group_name:
         return group_name
+    elif mount_point == '/':
+        return '/' + group_name
     return '/'.join([mount_point, group_name])

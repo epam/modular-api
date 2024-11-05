@@ -1,3 +1,4 @@
+import os
 from enum import Enum
 from pathlib import Path
 
@@ -17,6 +18,9 @@ class ServiceMode(str, Enum):
     SAAS = 'saas'
     ONPREM = 'onprem'
     PRIVATE = 'private'
+
+
+_SENTINEL = object()
 
 
 class Env(str, Enum):
@@ -42,6 +46,7 @@ class Env(str, Enum):
     API_CALLS_PER_SECOND_LIMIT = 'MODULAR_API_CALLS_PER_SECOND_LIMIT', '10'
     MIN_CLI_VERSION = 'MODULAR_API_MIN_CLI_VERSION', '1.2.0'
     ENABLE_PRIVATE_MODE = 'MODULAR_API_ENABLE_PRIVATE_MODE', 'false'
+    DISABLE_RATE_LIMITER = 'MODULAR_API_DISABLE_RATE_LIMITER'
 
     # logs
     SERVER_LOG_LEVEL = 'MODULAR_API_SERVER_LOG_LEVEL', 'INFO'
@@ -55,6 +60,19 @@ class Env(str, Enum):
                                   'modular-api-rate-limits')
 
     AWS_REGION = 'AWS_REGION', 'us-east-1'
+
+    def get(self, default=_SENTINEL) -> str | None:
+        if default is _SENTINEL:
+            default = self.default
+        if default is not None:
+            default = str(default)
+        return os.environ.get(self.value, default)
+
+    def set(self, val: str | None):
+        if val is None:
+            os.environ.pop(self.value, None)
+        else:
+            os.environ[self.value] = str(val)
 
 
 ACTIVATED_STATE = 'activated'

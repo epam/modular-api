@@ -45,6 +45,9 @@ logging.config.dictConfig({
         # },
         'file_formatter': {
             'format': LOGS_FORMAT
+        },
+        'init_formatter': {
+            'format': '[%(levelname)s] %(message)s'
         }
     },
     'handlers': {
@@ -61,6 +64,10 @@ logging.config.dictConfig({
             'class': 'logging.FileHandler',
             'filename': CLI_LOGS_FILE,
             'formatter': 'file_formatter',
+        },
+        'init_handler': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'init_formatter'
         }
     },
     'loggers': {
@@ -72,6 +79,10 @@ logging.config.dictConfig({
         'modular_api_cli': {
             'level': os.getenv(Env.CLI_LOG_LEVEL, Env.CLI_LOG_LEVEL.default),
             'handlers': ['cli_file_handler']
+        },
+        'init': {
+            'level': 'DEBUG',
+            'handlers': ['init_handler']
         }
     }
 })

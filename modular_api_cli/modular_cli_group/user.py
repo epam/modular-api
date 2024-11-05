@@ -160,51 +160,52 @@ def describe(username):
 
 
 @user.command(cls=BaseCommand, name='set_meta_attribute')
-@click.option('--username', '-u', type=str, required=True,
-              help='Username')
+@click.option('--username', '-u', type=str, required=True, help='Username')
 @click.option('--meta_type', '-mt', default=ALLOWED_VALUES,
               type=click.Choice(MODULAR_USER_META_TYPES, False),
               help='Type of meta. Supports two types: "allowed_values": '
                    'restricts the parameters allowed for the user (Default). '
                    '"aux_data": stores additional private user data for '
                    'customized usage.')
-@click.option('--key', '-k', type=str, required=True,
-              help='Parameter name')
-@click.option('--value', '-v', type=str, required=True,
-              multiple=True,
+@click.option('--key', '-k', type=str, required=True, help='Parameter name')
+@click.option('--value', '-v', type=str, required=False, multiple=True,
               help='Parameter value. Multiple values allowed (e.g. '
                    '--value value1 --value value2).')
+@click.option('--value_as_json', '-vj', type=str, required=False,
+              help='Parameter value as json (e.g. {"k": "v"} or ["v1", "v2"]).')
 @ResponseDecorator(click.echo, 'Can not set user meta')
-def set_meta_attribute(username, meta_type, key, value):
+def set_meta_attribute(username, meta_type, key, value, value_as_json):
     """
     Add or replace Modular user meta information.
     """
     return user_handler_instance().set_user_meta_handler(
         username=username, meta_type=meta_type, key=key, values=value,
+        value_as_json=value_as_json,
     )
 
 
 @user.command(cls=BaseCommand, name='update_meta_attribute')
-@click.option('--username', '-u', type=str, required=True,
-              help='User name')
+@click.option('--username', '-u', type=str, required=True, help='User name')
 @click.option('--meta_type', '-mt', default=ALLOWED_VALUES,
               type=click.Choice(MODULAR_USER_META_TYPES, False),
               help='Type of meta. Supports two types: "allowed_values": '
                    'restricts the parameters allowed for the user (Default). '
                    '"aux_data": stores additional private user data for '
                    'customized usage.')
-@click.option('--key', '-k', type=str, required=True,
-              help='Parameter name')
-@click.option('--value', '-v', type=str, required=True, multiple=True,
+@click.option('--key', '-k', type=str, required=True, help='Parameter name')
+@click.option('--value', '-v', type=str, multiple=True,
               help='Parameter value. Multiple values allowed (e.g. '
                    '--value value1 --value value2).')
+@click.option('--value_as_json', '-vj', type=str, required=False,
+              help='Parameter value as json (e.g. {"k": "v"} or ["v1", "v2"]).')
 @ResponseDecorator(click.echo, 'Can not update user meta')
-def update_meta_attribute(username, meta_type, key, value):
+def update_meta_attribute(username, meta_type, key, value, value_as_json):
     """
     Update Modular user meta information.
     """
     return user_handler_instance().update_user_meta_handler(
         username=username, meta_type=meta_type, key=key, values=value,
+        value_as_json=value_as_json,
     )
 
 

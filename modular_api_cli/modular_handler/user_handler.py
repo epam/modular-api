@@ -635,8 +635,41 @@ class UserHandler:
             username: str,
             meta_type: str,
             key: str,
-            values: tuple,
+            values: tuple | None = None,
+            value_as_json: str | None = None,
     ) -> CommandResponse:
+        if (not values) == (not value_as_json):
+            raise ModularApiBadRequestException(
+                "Please provide either '--values' or '--value_as_json'"
+            )
+        try:
+            data_to_store = json.loads(value_as_json) \
+                if value_as_json else list(values)
+        except json.JSONDecodeError:
+            raise ModularApiBadRequestException(
+                "The provided JSON string could not be decoded. "
+                "Please check the format and ensure it is a valid JSON"
+            )
+        if meta_type not in (ALLOWED_VALUES, AUX_DATA):
+            raise ModularApiBadRequestException(
+                f"Unsupported type provided: {meta_type}"
+            )
+        _allowed_values = meta_type == ALLOWED_VALUES
+        _valid_allowed_values = (
+            isinstance(data_to_store, list) and
+            all(isinstance(i, str) for i in data_to_store)
+        )
+        _aux_data = meta_type == AUX_DATA
+        _valid_aux_data = (
+            isinstance(data_to_store, dict) and
+            all(isinstance(i, str) for i in data_to_store.keys()) and
+            all(isinstance(i, str) for i in data_to_store.values())
+        )
+        if _allowed_values and not _valid_allowed_values or _aux_data and not _valid_aux_data:
+            raise ModularApiBadRequestException(
+                f"The data structure provided does not match the expected "
+                f"format for type: {meta_type}"
+            )
         _LOG.info(
             f"Going to set meta with type '{meta_type}' for the user '{username}'"
         )
@@ -649,10 +682,10 @@ class UserHandler:
             case "allowed_values":
                 validate_meta_keys(key)
                 action = 'replaced' if key in user.meta[meta_type] else 'set'
-                user.meta[meta_type][key] = list(values)
+                user.meta[meta_type][key] = data_to_store
             case "aux_data":
                 action = 'replaced' if key in user.meta[meta_type] else 'set'
-                user.meta[meta_type][key] = list(values)
+                user.meta[meta_type][key] = data_to_store
             case _:
                 raise ModularApiBadRequestException(
                     f"Invalid meta_type. Should be either {ALLOWED_VALUES} or "
@@ -672,8 +705,41 @@ class UserHandler:
             username: str,
             meta_type: str,
             key: str,
-            values: tuple,
+            values: tuple | None = None,
+            value_as_json: str | None = None,
     ) -> CommandResponse:
+        if (not values) == (not value_as_json):
+            raise ModularApiBadRequestException(
+                "Please provide either '--values' or '--value_as_json'"
+            )
+        try:
+            data_to_store = json.loads(value_as_json) \
+                if value_as_json else list(values)
+        except json.JSONDecodeError:
+            raise ModularApiBadRequestException(
+                "The provided JSON string could not be decoded. "
+                "Please check the format and ensure it is a valid JSON"
+            )
+        if meta_type not in (ALLOWED_VALUES, AUX_DATA):
+            raise ModularApiBadRequestException(
+                f"Unsupported type provided: {meta_type}"
+            )
+        _allowed_values = meta_type == ALLOWED_VALUES
+        _valid_allowed_values = (
+            isinstance(data_to_store, list) and
+            all(isinstance(i, str) for i in data_to_store)
+        )
+        _aux_data = meta_type == AUX_DATA
+        _valid_aux_data = (
+            isinstance(data_to_store, dict) and
+            all(isinstance(i, str) for i in data_to_store.keys()) and
+            all(isinstance(i, str) for i in data_to_store.values())
+        )
+        if _allowed_values and not _valid_allowed_values or _aux_data and not _valid_aux_data:
+            raise ModularApiBadRequestException(
+                f"The data structure provided does not match the expected "
+                f"format for type: {meta_type}"
+            )
         _LOG.info(f'Going to update user \'{username}\' meta')
         user = self.check_existence_and_get_user(username)
         self.check_user_validness(user)
@@ -695,10 +761,11 @@ class UserHandler:
             case "allowed_values":
                 validate_meta_keys(key)
                 values_list = user.meta[meta_type].get(key)
-                user.meta[meta_type][key] = list(set(values_list) | set(values))
+                user.meta[meta_type][key] = \
+                    list(set(values_list) | set(data_to_store))
             case "aux_data":
-                values_list = user.meta[meta_type].get(key)
-                user.meta[meta_type][key] = list(set(values_list) | set(values))
+                values_dict = user.meta[meta_type].get(key)
+                user.meta[meta_type][key] = values_dict | data_to_store
             case _:
                 raise ModularApiBadRequestException(
                     f"Invalid meta_type. Should be either {ALLOWED_VALUES} or "
@@ -789,13 +856,11 @@ class UserHandler:
             if section_data is None:
                 continue
             for item, values in section_data.items():
-                values.sort()
-                result = ', '.join(values)
                 items.append(
                     {
                         "Type of meta": section,
                         "Parameter name": item,
-                        "Parameter values": result,
+                        "Parameter values": values,
                     }
                 )
         _LOG.info('User meta successfully described')
