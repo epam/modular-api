@@ -2,11 +2,32 @@
 
 DOCKER_EXECUTABLE := podman
 
-IMAGE_NAME := m3-modular-admin
-IMAGE_TAG := latest
+SERVER_IMAGE_NAME := public.ecr.aws/x4s4z8e1/syndicate/modular-api
+SERVER_IMAGE_TAG ?= $(shell python -c "from modular_api.version import __version__; print(__version__)")
 
-image:
-	$(DOCKER_EXECUTABLE) build -t $(IMAGE_NAME):$(IMAGE_TAG) .
+
+image-arm64:
+	$(DOCKER_EXECUTABLE) build --platform linux/arm64 -t $(SERVER_IMAGE_NAME):$(SERVER_IMAGE_TAG)-arm64 .
+
+image-amd64:
+	$(DOCKER_EXECUTABLE) build --platform linux/amd64 -t $(SERVER_IMAGE_NAME):$(SERVER_IMAGE_TAG)-amd64 .
+
+
+image-manifest:
+	-$(DOCKER_EXECUTABLE) manifest rm $(SERVER_IMAGE_NAME):$(SERVER_IMAGE_TAG)
+	$(DOCKER_EXECUTABLE) manifest create $(SERVER_IMAGE_NAME):$(SERVER_IMAGE_TAG) $(SERVER_IMAGE_NAME):$(SERVER_IMAGE_TAG)-arm64 $(SERVER_IMAGE_NAME):$(SERVER_IMAGE_TAG)-amd64
+	$(DOCKER_EXECUTABLE) manifest annotate $(SERVER_IMAGE_NAME):$(SERVER_IMAGE_TAG) $(SERVER_IMAGE_NAME):$(SERVER_IMAGE_TAG)-arm64 --arch arm64
+	$(DOCKER_EXECUTABLE) manifest annotate $(SERVER_IMAGE_NAME):$(SERVER_IMAGE_TAG) $(SERVER_IMAGE_NAME):$(SERVER_IMAGE_TAG)-amd64 --arch amd64
+
+push-arm64:
+	$(DOCKER_EXECUTABLE) push $(SERVER_IMAGE_NAME):$(SERVER_IMAGE_TAG)-arm64
+
+
+push-amd64:
+	$(DOCKER_EXECUTABLE) push $(SERVER_IMAGE_NAME):$(SERVER_IMAGE_TAG)-amd64
+
+push-manifest:
+	$(DOCKER_EXECUTABLE) manifest push $(SERVER_IMAGE_NAME):$(SERVER_IMAGE_TAG)
 
 clear:
 	-rm modular_api.log modular_api_cli.log

@@ -33,7 +33,9 @@ from modular_api.helpers.exceptions import (
     ModularApiUnauthorizedException, ModularApiBadRequestException
 )
 from modular_api.helpers.jwt_auth import (
-    encode_data_to_jwt, username_from_jwt_token, decode_jwt_token
+    encode_data_to_jwt, username_from_jwt_token, decode_jwt_token,
+    gen_refresh_token_version, encode_data_to_refresh_jwt,
+    validate_refresh_token,
 )
 from modular_api.helpers.log_helper import get_logger
 from modular_api.helpers.params_converter import convert_api_params
@@ -54,6 +56,7 @@ from modular_api.web_service.response_processor import (
     build_exception_content, validate_request, extract_and_convert_parameters,
     get_group_path
 )
+from modular_api.services.refresh_token_service import RefreshTokenService
 
 _LOG = get_logger(__name__)
 
@@ -66,7 +69,7 @@ USAGE_SERVICE = SP.usage_service
 THREAD_LOCAL_STORAGE = Modular().thread_local_storage_service()
 
 
-def resolve_permissions(tracer, empty_cache=None):
+def resolve_permissions(tracer, empty_cache=False):
     def decorator(func):
         def wrapper(*a, **ka):
             # sleep(0.35)  # for what?
@@ -128,12 +131,14 @@ def get_module_group_and_associate_object() -> None:
                                 group_full_name_list[0] == 'private' or
                                 group_full_name_list == 'private')
 
+            group_full_name = '/'.join(group_full_name_list) \
+                if type(group_full_name_list) == list else group_full_name_list
             if is_private_group ^ SP.env.is_private_mode_enabled():
                 continue
             group_path = get_group_path(mount_point=mount_point,
-                                        group_name=group_name)
+                                        group_name=group_full_name)
             module_spec = importlib.util.spec_from_file_location(
-                group_name,
+                group_full_name,
                 os.path.join(command_group_path, command_group))
             imported_module = importlib.util.module_from_spec(module_spec)
             module_spec.loader.exec_module(imported_module)
@@ -240,8 +245,13 @@ def login(allowed_commands, user_meta):
             meta_return = meta_param[0]
         meta_return = True if meta_return.lower() == 'true' else False
     jwt_token = encode_data_to_jwt(username=username)
+    # Generate and store a refresh JWT token
+    rt_version = gen_refresh_token_version()
+    refresh_token = encode_data_to_refresh_jwt(username, rt_version)
+    RefreshTokenService.create_and_save(username, rt_version)
     data = {
         'jwt': jwt_token,
+        'refresh_token': refresh_token,
         'version': __version__
     }
     if meta_return:
@@ -249,9 +259,43 @@ def login(allowed_commands, user_meta):
         data['meta'] = allowed_commands
     if version_warning:
         data['warnings'] = version_warning
+    return build_response(
+        _trace_id=_trace_id, http_code=HTTPStatus.OK, content=data
+    )
 
-    return build_response(_trace_id=_trace_id, http_code=HTTPStatus.OK,
-                          content=data)
+
+@tracer.wrap()
+def refresh():
+    _trace_id = get_trace_id(tracer=tracer)
+    refresh_token = request.json.get('refresh_token')
+    if not refresh_token:
+        return build_response(
+            _trace_id=_trace_id,
+            http_code=HTTPStatus.UNAUTHORIZED,
+            message='Refresh token is required',
+        )
+    # Validate the refresh token
+    username, rt_version = validate_refresh_token(refresh_token)
+    if not username:
+        return build_response(
+            _trace_id=_trace_id,
+            http_code=HTTPStatus.UNAUTHORIZED,
+            message='Invalid or expired refresh token',
+        )
+    # Generate a new JWT session token
+    jwt_token = encode_data_to_jwt(username=username)
+    # Generate and store a new refresh JWT token
+    new_rt_version = gen_refresh_token_version()
+    new_refresh_token = encode_data_to_refresh_jwt(username, new_rt_version)
+    RefreshTokenService.create_and_save(username, new_rt_version)
+    data = {
+        'jwt': jwt_token,
+        'refresh_token': new_refresh_token,
+        'version': __version__,
+    }
+    return build_response(
+        _trace_id=_trace_id, http_code=HTTPStatus.OK, content=data
+    )
 
 
 def add_versions_to_allowed_modules(allowed_commands: dict) -> None:
@@ -420,20 +464,18 @@ def index(path: str, allowed_commands=None, user_meta=None):
                                             user_meta=user_meta)
 
         secure_parameters = command_def.get('secure_parameters', [])
-        parameters, temp_files_list, body_to_log = \
+        parameters, temp_files_list, _ = \
             convert_api_params(
                 body=request_body_raw,
                 command_def=command_def,
                 secure_parameters=secure_parameters
             )
         _LOG.info('Request data: \npath={}\n'
-                  'method={}\nbody:\n{}'.format(path, method, body_to_log))
+                  'method={}'.format(path, method))
 
         command_handler_name = command_def.get('handler')
-        group_name = command_def.get('parent')
-        mount_point = command_def.get('mount_point')
-        group_path = get_group_path(mount_point=mount_point,
-                                    group_name=group_name)
+        route_path = command_def.get('route', {}).get('group_path')
+        group_path = '/'.join(route_path.split('/')[:-1])
 
         correct_method = getattr(
             MODULE_GROUP_GROUP_OBJECT_MAPPING[group_path],
@@ -605,6 +647,11 @@ class WSGIApplicationBuilder:
             callback=login
         )
         child.route(
+            path='/refresh',
+            method=HTTPMethod.POST,
+            callback=refresh
+        )
+        child.route(
             path='/version',
             method=HTTPMethod.GET,
             callback=version
@@ -636,7 +683,9 @@ class WSGIApplicationBuilder:
         else:
             application = child
 
-        application = self._rate_limited(application)
+        if self._env.is_rate_limiting_enabled():
+            _LOG.info('Enabling rate limiting')
+            application = self._rate_limited(application)
         _LOG.info('WSGI application was built')
         return application
 

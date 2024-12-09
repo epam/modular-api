@@ -9,3 +9,4 @@ metadata:
     helm.sh/chart: {{ include "modular-api.chart" . }}
 data:
   db-name: {{ .Values.databaseName }}
+  disable-rate-limiter: {{ .Values.disableRateLimiter | quote }}

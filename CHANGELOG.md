@@ -1,7 +1,27 @@
 CHANGELOG
 
-# [4.0.8] - 2024-09-12
+# [4.2.1] - 2024-10-07
+* Update `modular-sdk` from `==6.1.0` to `==6.2.0`
+
+# [4.2.0] - 2024-09-24
+* add env `MODULAR_API_DISABLE_RATE_LIMITER` which does what the name suggests
+* Update libraries:
+  * `pynamodb` from `5.3.2` to `5.5.1`
+  * `modular-sdk` from `>=5.0.0,<6.0.0` to `==6.1.0`
+* Fix bug where some commands were not found in commands to object mapping
+* Add `group_path` to the route config
+
+# [4.1.3] - 2024-09-11
 * Update `modular-sdk` from `>=5.0.0,<6.0.0` to `==6.0.1b2`
+
+# [4.1.1] - 2024-09-10
+* do not log body
+
+# [4.1.0] - 2024-08-30
+* Add a one-time `refresh token` for session renewal without requiring re-login
+
+# [4.0.8] - 2024-08-29
+* Fix bug when different groups with the same name referred to the same inner object
 
 # [4.0.7] - 2024-08-05
 * Fix `modular get_meta` to match new `ModularUser` `meta` implementation

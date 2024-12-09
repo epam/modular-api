@@ -270,7 +270,8 @@ class CommandsDefinitionsExtractor:
                 else f'{self._mount_point}/{full_group_path}/{command_name}'
         return {
             'method': self.DEFAULT_METHOD,
-            'path': path
+            'path': path,
+            'group_path': path
         }
 
     @staticmethod

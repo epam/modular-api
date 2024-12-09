@@ -40,6 +40,9 @@ class EnvironmentService:
         # should handle that case
         return int(val)
 
+    def is_rate_limiting_enabled(self) -> bool:
+        return not Env.DISABLE_RATE_LIMITER.get()
+
     def min_cli_version(self) -> str:
         return self._ensure_env(Env.MIN_CLI_VERSION)
 

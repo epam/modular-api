@@ -9,6 +9,13 @@ metadata:
     helm.sh/chart: {{ include "modular-api.chart" . }}
 spec:
   replicas: {{ .Values.replicas }}
+  strategy:
+    type: {{ .Values.strategy.type }}
+    {{- if eq .Values.strategy.type "RollingUpdate" }}
+    rollingUpdate:
+      maxSurge: {{ .Values.strategy.maxSurge }}
+      maxUnavailable: {{ .Values.strategy.maxUnavailable }}
+    {{- end}}
   selector:
     matchLabels:
       app.kubernetes.io/name: {{ include "modular-api.name" . }}
@@ -20,6 +27,8 @@ spec:
         app.kubernetes.io/instance: {{ .Release.Name }}
         app.kubernetes.io/managed-by: {{ .Release.Service }}
         helm.sh/chart: {{ include "modular-api.chart" . }}
+      annotations:
+        rollme: {{ randAlphaNum 5 | quote }}
     spec:
       restartPolicy: Always
       containers:
@@ -38,7 +47,7 @@ spec:
             failureThreshold: 3
           ports:
             - containerPort: 8085
-              hostPort: 8085
+              name: http
               protocol: TCP
           env:
             - name: modular_mongo_user
@@ -77,3 +86,14 @@ spec:
                   key: token
             - name: MODULAR_CLI_VAULT_ADDR
               value: "http://{{ .Values.vaultService }}:{{ .Values.vaultPort }}"
+            - name: MODULAR_API_DISABLE_RATE_LIMITER
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "modular-api.fullname" . }}
+                  key: disable-rate-limiter
+            - name: HTTP_PROXY
+              value: {{ .Values.httpProxy }}
+            - name: HTTPS_PROXY
+              value: {{ .Values.httpProxy }}
+            - name: NO_PROXY
+              value: {{ .Values.noProxy }}
