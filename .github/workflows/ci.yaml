@@ -32,7 +32,7 @@ jobs:
         id: get_previous_version
         run: |
           git fetch --tags
-          PREVIOUS_VERSION=$(git tag --sort=-creatordate | sed -n '2p' | sed 's/^v//')
+          PREVIOUS_VERSION=$(git tag --sort=-creatordate | sed -n '1p' | sed 's/^v//')
           echo "PREVIOUS_VERSION=$PREVIOUS_VERSION" >> $GITHUB_ENV
           echo "previous_version=$PREVIOUS_VERSION" >> $GITHUB_OUTPUT
           echo "Previous version: $PREVIOUS_VERSION"
@@ -50,7 +50,7 @@ jobs:
               previous_version_escaped=$(echo "$previous_version" | sed 's/\./\\./g')
           
               # Extract release notes
-              release_notes=$(awk "/## \[$current_version_escaped\]/,/## \[$previous_version_escaped\]/" "$changelog_file" | sed '$d')
+              release_notes=$(awk "/# \[$current_version_escaped\]/,/# \[$previous_version_escaped\]/" "$changelog_file" | sed '$d')
               echo "$release_notes"
           }
           
