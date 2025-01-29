@@ -1,5 +1,8 @@
 CHANGELOG
 
+# [4.2.2] - 2024-10-21
+* Update `modular-sdk` from `==6.2.0` to `==6.2.1`
+
 # [4.2.1] - 2024-10-07
 * Update `modular-sdk` from `==6.1.0` to `==6.2.0`
 
