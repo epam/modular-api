@@ -24,7 +24,7 @@ dependencies = [
     'typing-extensions>=4.10.0,<5.0.0',
     'limits==3.9.0',
     'modular-cli-sdk>=2.0.0,<3.0.0',
-    'modular-sdk==6.2.0',
+    'modular-sdk==6.2.1',
     'python-dotenv==1.0.1'
 ]
 
