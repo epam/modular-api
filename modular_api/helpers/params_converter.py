@@ -1,12 +1,13 @@
 import os
 import pathlib
 from base64 import b64decode
+from uuid import uuid4
 
 from modular_api.helpers.exceptions import ModularApiBadRequestException
 from modular_api.helpers.log_helper import get_logger
 
 _LOG = get_logger(__name__)
-TEMP_FILE_TEMPLATE = '.{0}_modular_temp'
+TEMP_FILE_TEMPLATE = '.{0}_modular_temp_{1}'
 SECURE_STRING = '*****'
 TEMP_FILE_FOLDER_PATH = pathlib.Path(__file__).parent.parent.resolve()
 
@@ -37,8 +38,11 @@ def is_valid_file_extensions_passed(meta_file_extensions,
             f'{", ".join(meta_file_extensions)}')
 
 
-def process_file_with_extension(file_extension: str, 
-                                file_content: bytes, temp_file: str):
+def process_file_with_extension(
+        file_extension: str,
+        file_content: bytes,
+        temp_file: str,
+):
     with open(temp_file, 'wb') as file:
         file.write(file_content)
 
@@ -68,7 +72,8 @@ def convert_api_params(body, command_def, secure_parameters):
                 received_file_extension=received_file_extension
             )
 
-            temp_file_key = TEMP_FILE_TEMPLATE.format(key)
+            uuid_short = '_'.join(str(uuid4()).split('-')[0:2])
+            temp_file_key = TEMP_FILE_TEMPLATE.format(key, uuid_short)
             temp_file = os.path.join(TEMP_FILE_FOLDER_PATH, temp_file_key)
             temp_file += received_file_extension
 
