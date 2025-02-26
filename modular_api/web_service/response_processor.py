@@ -14,8 +14,7 @@ _LOG = get_logger(__name__)
 def build_exception_content(exception):
     if isinstance(exception, GetError) and getattr(
             exception, 'cause_response_code', '') == 'ExpiredTokenException':
-        exception = ModularApiUnauthorizedException(
-            'Token expired.')
+        exception = ModularApiUnauthorizedException('Token expired.')
     if not hasattr(exception, 'code'):
         exception = ModularApiInternalException('Exception occurred')
     code = exception.code
@@ -60,7 +59,7 @@ def validate_request(command, req_params, method, user_meta):
 
     if len(all_param_names) == len(req_params) or len(req_params) > len(
             all_param_names):
-        if not set(all_param_names) == set(req_params):
+        if set(all_param_names) != set(req_params):
             wrong_parameters_specified_message = 'Wrong parameters specified'
             _LOG.error(wrong_parameters_specified_message)
             raise ModularApiBadRequestException(

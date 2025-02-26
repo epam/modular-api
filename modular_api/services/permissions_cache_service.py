@@ -3,7 +3,9 @@ import os
 from pathlib import Path
 
 from modular_api.models.user_model import User
-from modular_api.helpers.constants import ACTIVATED_STATE, ALLOWED_VALUES
+from modular_api.helpers.constants import (
+    ACTIVATED_STATE, ALLOWED_VALUES, INVALID_CREDENTIALS_ERROR,
+)
 from modular_api.helpers.exceptions import (
     ModularApiUnauthorizedException, ModularApiBadRequestException,
 )
@@ -63,8 +65,7 @@ class PermissionsService:
         return user_allowed_commands
 
     def generate_allowed_commands(self, group_name):
-        _LOG.info(f'Available commands generating for {group_name} '
-                  f'groups')
+        _LOG.info(f'Available commands generating for {group_name} groups')
 
         group_item = self.group_service.describe_group(group_name=group_name)
 
@@ -82,9 +83,7 @@ class PermissionsService:
             _LOG.error(f'{group_item.group_name} group invalid. Possible '
                        f'reason: {possible_reason}')
 
-            raise ModularApiUnauthorizedException(
-                'Provided credentials are invalid or the access was revoked, '
-                'please contact service administrator')
+            raise ModularApiUnauthorizedException(INVALID_CREDENTIALS_ERROR)
 
         group_policy = []
         for policy in group_item.policies:
@@ -104,9 +103,7 @@ class PermissionsService:
                     possible_reason = 'compromised item and inactive state'
                 _LOG.error(f'{group_item.group_name} policy invalid. Possible '
                            f'reason: {possible_reason}')
-                raise ModularApiUnauthorizedException(
-                    'Provided credentials are invalid or the access was '
-                    'revoked, please contact service administrator')
+                raise ModularApiUnauthorizedException(INVALID_CREDENTIALS_ERROR)
 
             for policy_content in policy_item.content:
                 group_policy.append(policy_content)
@@ -135,14 +132,10 @@ class PermissionsService:
         )
         if calculated_hash != user_item.hash:
             _LOG.error(f'{user_item.username} user item compromised')
-            raise ModularApiUnauthorizedException(
-                'Provided credentials are invalid or the access was '
-                'revoked, please contact service administrator')
+            raise ModularApiUnauthorizedException(INVALID_CREDENTIALS_ERROR)
         elif user_item.state != ACTIVATED_STATE:
             _LOG.error(f'{user_item.username} user item in inactive state')
-            raise ModularApiUnauthorizedException(
-                'Provided credentials are invalid or the access was '
-                'revoked, please contact service administrator')
+            raise ModularApiUnauthorizedException(INVALID_CREDENTIALS_ERROR)
 
     def authenticate_user(
             self,

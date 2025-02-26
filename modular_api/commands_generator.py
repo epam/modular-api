@@ -158,7 +158,7 @@ def __resolve_group_name(group_filename):
     return group_filename.split(GROUP_NAME_SEPARATOR)
 
 
-def _get_param_def_from_line(line):
+def _get_param_def_from_line(line: str) -> dict:
     if '\'\'' in line:
         line = line.replace('\'\'', '')
     split = [line for line in line.split('\'') if line]
@@ -180,13 +180,17 @@ def _get_param_def_from_line(line):
                                   for extension in allowed_extensions]
         if re.match(r'^--[a-z]', part):
             param_name = str(part).replace('--', '')
-        if re.match(r'^-[a-zA-z]', part):
+        if re.match(r'^-[a-zA-Z]', part):
             alias_name = str(part).replace('-', '')
         if 'help=' in part:
-            param_doc = str(split[index + 1])
-            param_doc = param_doc.replace('*', '').strip() \
-                if '*' in param_doc \
-                else param_doc
+            try:  # 'param_doc' value will not be used anymore
+                param_doc = str(split[index + 1]).replace('*', '').strip()
+            except Exception as e:
+                param_doc = ''
+                _LOG.error(
+                    f"Error type: {e.__class__.__name__}. Error message: {e}. "
+                    f"Context: {part}"
+                )
         if 'is_flag' in part:
             param_type = 'bool'
             is_flag = True
@@ -307,7 +311,7 @@ class CommandsDefinitionsExtractor:
 
         return parameters_to_be_secured
 
-    def _get_api_route_flag_and_secured_params(self, subgroup):
+    def _get_api_route_flag_and_secured_params(self, subgroup: bool) -> dict:
         group_content = inspect.getsource(self._module)
         lines = group_content.split('\n')
         command_definitions = {}
@@ -405,7 +409,7 @@ class CommandsDefinitionsExtractor:
                 })
         return command_definitions
 
-    def extract(self, subgroup):
+    def extract(self, subgroup: bool) -> dict:
         definitions = {}
         for entity in dir(self._module):
             click_command = getattr(self._module, entity)
@@ -426,6 +430,13 @@ class CommandsDefinitionsExtractor:
                     'type': self.click_to_our_types_mapping.get(
                         param.type.name, param.type.name)
                 }
+
+                interactive_settings = getattr(
+                    param, "interactive_settings", None,
+                )
+                if interactive_settings:
+                    param_meta['interactive_settings'] = interactive_settings
+
                 if isinstance(param.type, (Choice)):
                     # TODO refactor asap
                     choices = param.type.choices

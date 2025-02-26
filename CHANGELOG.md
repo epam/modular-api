@@ -1,5 +1,21 @@
 CHANGELOG
 
+# [4.2.6] - 2025-02-05
+[EPMCEOOS-6588]:
+* Fix code based on SonarQube recommendations
+
+# [4.2.5] - 2025-01-28
+[EPMCEOOS-6554]:
+* Add short UUID to temporary file names to ensure uniqueness across concurrent commands
+
+# [4.2.4] - 2025-01-08
+* Add `interactive_settings` as a new type for generating valid commands, 
+to be used as login metadata
+
+# [4.2.3] - 2024-12-18
+* Update `_get_param_def_from_line` function to log an error and set a default
+value when attempting to get command help and an error occurs
+
 # [4.2.2] - 2024-10-21
 * Update `modular-sdk` from `==6.2.0` to `==6.2.1`
 

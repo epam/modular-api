@@ -23,7 +23,7 @@ def policy_sort(policy_list: list) -> dict:
                        f'contains "MountPoint":"{item.get("MountPoint")}" and/or'
                        f' "Group":"{item.get("Group")}"')
             raise ModularApiConfigurationException(
-                f'Invalid policies detected. Please contact support team'
+                'Invalid policies detected. Please contact support team'
             )
     # =====
     for item in policy_list:
@@ -265,7 +265,6 @@ def filter_meta_by_deny_priority(policy: list, all_meta: dict) -> dict:
                                 group=group, subgroup=subgroup, command=cmd)
                             if not allow_sub_command:
                                 del user_commands[module][bd][group][bd][subgroup][bd][cmd]
-                                continue
 
                     else:
                         cmd = group_item
@@ -349,7 +348,6 @@ def filter_meta_by_allow_priority(policy: list, all_meta: dict) -> dict:
                                 atype='subgroup_command')
                             if not allow_sub_command:
                                 del user_commands[module][bd][group][bd][subgroup][bd][cmd]
-                                continue
                     else:
                         cmd = group_item
                         allow_group_command = check_permission(

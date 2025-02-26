@@ -162,3 +162,8 @@ SERVICE_DISPLAY_NAME = 'service_display_name'
 ALLOWED_VALUES = 'allowed_values'
 AUX_DATA = 'aux_data'
 MODULAR_USER_META_TYPES = (ALLOWED_VALUES, AUX_DATA)
+
+INVALID_CREDENTIALS_ERROR = (
+    'Provided credentials are invalid or the access was revoked, please '
+    'contact service administrator'
+)
