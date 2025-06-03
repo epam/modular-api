@@ -4,7 +4,7 @@ DOCKER_EXECUTABLE := podman
 
 SERVER_IMAGE_NAME := public.ecr.aws/x4s4z8e1/syndicate/modular-api
 SERVER_IMAGE_TAG ?= $(shell python -c "from modular_api.version import __version__; print(__version__)")
-ADDITIONAL_BUILD_PARAMS ?= ""
+ADDITIONAL_BUILD_PARAMS ?=
 
 image-arm64:
 	$(DOCKER_EXECUTABLE) build $(ADDITIONAL_BUILD_PARAMS) --platform linux/arm64 -t $(SERVER_IMAGE_NAME):$(SERVER_IMAGE_TAG)-arm64 .

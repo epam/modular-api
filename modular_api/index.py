@@ -18,7 +18,7 @@ from typing import Callable
 from limits import RateLimitItemPerSecond, RateLimitItem
 from limits.storage import MemoryStorage
 from limits.strategies import MovingWindowRateLimiter, RateLimiter
-from modular_sdk.modular import Modular
+from modular_sdk.modular import ModularServiceProvider
 
 from modular_api.commands_generator import (
     resolve_group_name, get_file_names_which_contains_admin_commands
@@ -66,7 +66,7 @@ tracer.configure(writer=MagicMock())  # ???
 WEB_SERVICE_PATH = os.path.dirname(__file__)
 PERMISSION_SERVICE = permissions_handler_instance()
 USAGE_SERVICE = SP.usage_service
-THREAD_LOCAL_STORAGE = Modular().thread_local_storage_service()
+THREAD_LOCAL_STORAGE = ModularServiceProvider().thread_local_storage_service()
 
 
 def resolve_permissions(tracer, empty_cache=False):
@@ -364,7 +364,7 @@ def health_check():
     return build_response(
         _trace_id=_trace_id,
         http_code=HTTPStatus.OK,
-        content=None
+        message='Health check successful',
     )
 
 

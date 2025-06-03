@@ -1,5 +1,20 @@
 CHANGELOG
 
+# [4.2.10] - 2025-04-28
+* Update `EnvironmentService.mongo_database` method: `MODULAR_API_MONGO_DATABASE` environment variable is now optional
+* Switch `modular-sdk` source from GitHub to PyPI (version `6.5.0`)
+
+# [4.2.9] - 2025-03-25
+* Update `modular-sdk` from `==6.3.2` to `==6.5.0` (from github)
+* Update `/health_check` route to return `Health check successful` message
+
+# [4.2.8] - 2025-03-03
+* Update `modular-sdk` from `==6.2.1` to `==6.3.2`
+
+# [4.2.7] - 2025-02-25
+[EPMCEOOS-6631]:
+* Improve re-login help message
+
 # [4.2.6] - 2025-02-05
 [EPMCEOOS-6588]:
 * Fix code based on SonarQube recommendations

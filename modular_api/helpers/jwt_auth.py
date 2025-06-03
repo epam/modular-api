@@ -37,7 +37,8 @@ def decode_jwt_token(token: str) -> dict:
         # if you are going to change text in next line - you must update
         # RELOGIN_TEXT variable in Modular-CLI to keep automated re-login
         raise ModularApiUnauthorizedException(
-            'The provided token has expired. Please re-login to get a new token'
+            'The provided token (session or refresh) has expired. '
+            'Please re-authenticate to obtain new tokens'
         )
     except (jwt.exceptions.InvalidSignatureError, jwt.exceptions.DecodeError):
         return {}
@@ -87,7 +88,7 @@ def validate_refresh_token(refresh_token: str) -> tuple:
     # Retrieve the existing_token from db details
     version_from_db = existing_token.version
     # Validate if version match the database records
-    if not version == version_from_db:
+    if version != version_from_db:
         RefreshTokenService.delete_refresh_token(existing_token)
         return None, None
 
