@@ -6,7 +6,7 @@ from modular_api.helpers.constants import Env, ServiceMode
 class EnvironmentService:
     __slots__ = '_source',
 
-    def __init__(self, source: MutableMapping):
+    def __init__(self, source: MutableMapping) -> None:
         self._source = source
 
     def update_with(self, source: Mapping) -> None:
@@ -41,7 +41,7 @@ class EnvironmentService:
         return int(val)
 
     def is_rate_limiting_enabled(self) -> bool:
-        return not Env.DISABLE_RATE_LIMITER.get()
+        return not self._source.get(Env.DISABLE_RATE_LIMITER.value)
 
     def min_cli_version(self) -> str:
         return self._ensure_env(Env.MIN_CLI_VERSION)
@@ -54,8 +54,8 @@ class EnvironmentService:
     def mongo_uri(self) -> str:
         return self._ensure_env(Env.MONGO_URI)
 
-    def mongo_database(self) -> str:
-        return self._ensure_env(Env.MONGO_DATABASE)
+    def mongo_database(self) -> str | None:
+        return self._source.get(Env.MONGO_DATABASE.value)
 
     def mongo_rate_limits_database(self) -> str:
         return self._ensure_env(Env.MONGO_RATE_LIMITS_DATABASE)
