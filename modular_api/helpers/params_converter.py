@@ -61,11 +61,19 @@ def convert_api_params(body, command_def, secure_parameters):
     temp_files_list = []
     def_map = {j['name']: i for i, j in enumerate(command_def['parameters'])}
     for key, value in body.items():
-        if def_map.get(key) and command_def['parameters'][def_map[key]].get(
-                'convert_content_to_file'):
+        param_index = def_map.get(key)
 
-            meta_file_extensions = command_def['parameters'][def_map[key]].get(
-                'temp_file_extension')
+        if param_index is None:
+            _LOG.warning(
+                f"Unexpected parameter '{key}' in request 'body', not found in "
+                f"command definition. Skipping"
+            )
+            continue
+
+        param_def = command_def['parameters'][param_index]
+        if param_def.get('convert_content_to_file'):
+
+            meta_file_extensions = param_def.get('temp_file_extension')
             received_file_extension = value['file_extension']
             is_valid_file_extensions_passed(
                 meta_file_extensions=meta_file_extensions,
@@ -91,7 +99,7 @@ def convert_api_params(body, command_def, secure_parameters):
             temp_files_list.append(temp_file)
             continue
 
-        is_flag = command_def['parameters'][def_map[key]].get('is_flag')
+        is_flag = param_def.get('is_flag')
         if is_flag:
             if value not in [True, 'True', 'true']:
                 raise ModularApiBadRequestException(

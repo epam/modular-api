@@ -8,7 +8,7 @@ service:
 
 image:
   repository: public.ecr.aws/x4s4z8e1/syndicate/modular-api
-  tag: 4.2.10
+  tag: 4.2.11
   pullPolicy: Always
 
 replicas: 1
