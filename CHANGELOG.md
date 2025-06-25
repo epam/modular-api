@@ -1,5 +1,8 @@
 CHANGELOG
 
+# [4.2.11] - 2025-05-19
+* Fix bug in `convert_api_params` where parameters at index 0 were skipped due to a falsy value check
+
 # [4.2.10] - 2025-04-28
 * Update `EnvironmentService.mongo_database` method: `MODULAR_API_MONGO_DATABASE` environment variable is now optional
 * Switch `modular-sdk` source from GitHub to PyPI (version `6.5.0`)
