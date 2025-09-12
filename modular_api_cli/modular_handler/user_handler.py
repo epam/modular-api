@@ -144,7 +144,7 @@ class UserHandler:
 
         click.echo("PAY ATTENTION: You can get the user password only when "
                    "you add the new user. You cannot retrieve it later. "
-                   "If you lose it, you must create a new user or change"
+                   "If you lose it, you must create a new user or change "
                    "password via 'modular user change_password' command")
         _LOG.info('User successfully activated')
         return CommandResponse(

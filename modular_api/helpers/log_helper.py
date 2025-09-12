@@ -1,9 +1,8 @@
-from ddtrace import patch_all
-patch_all(logging=True)
-
+import os # Must set env vars before importing ddtrace
+os.environ["DD_TRACE_LOGGING_ENABLED"] = "true"
+import ddtrace.auto # noqa
 import logging
 import logging.config
-import os
 from pathlib import Path
 
 from modular_api.helpers.constants import (

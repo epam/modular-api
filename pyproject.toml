@@ -11,21 +11,26 @@ readme = "README.md"
 dynamic = ["version"]
 dependencies = [
     'toml==0.10.2',
-    'gunicorn==21.2.0',
-    'bottle==0.12.25',
+    'gunicorn==23.0.0',
+    'bottle==0.13.4',
     'click==7.1.2',
     'tenacity==8.4.1',
-    'ddtrace==0.61.5',
+    'ddtrace==3.9.4',
     'packaging==21.3',
     'prettytable==3.9.0',
     'PyJWT==2.8.0',
-    'pynamodb==5.5.1',
-    'python-dateutil==2.8.2',
+    'pynamodb==6.1.0',
+    'python-dateutil>=2.9.0.post0',
     'typing-extensions>=4.10.0,<5.0.0',
     'limits==3.9.0',
-    'modular-cli-sdk>=2.0.0,<3.0.0',
-    'modular-sdk==6.5.0',
+    'modular-sdk==7.1.1',
     'python-dotenv==1.0.1'
+]
+[dependency-groups]
+dev = [
+    "tox==3.24.5",
+    "pyflakes==2.4.0",
+    "flake8==4.0.1"
 ]
 
 [project.scripts]
@@ -45,3 +50,12 @@ exclude = [
 ]
 pythonVersion = "3.10"
 reportIncompatibleMethodOverride = "warning"
+
+[tool.ruff]
+line-length = 79
+src = ["modular_api", "modular_api_cli"]
+
+[tool.ruff.format]
+quote-style = "single"
+indent-style = "space"
+skip-magic-trailing-comma = true

@@ -36,8 +36,7 @@ class GroupService:
 
     @staticmethod
     def get_groups_by_name(group_names: Iterable[str]) -> list[Group]:
-        _LOG.info(f'Groups batch getting by provided names: '
-                  f'{group_names}')
+        _LOG.info(f'Groups batch getting by provided names: {group_names}')
         return list(Group.batch_get(items=group_names))
 
     @staticmethod

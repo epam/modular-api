@@ -11,7 +11,7 @@ class RefreshTokenService:
             username: str,
             version: str,
     ) -> RefreshToken:
-        _LOG.info(f"Creating and saving refresh token for user '{username}'")
+        _LOG.info("Creating and saving refresh token")
         refresh_token = RefreshToken(username=username, version=version)
         refresh_token.save()
         return refresh_token

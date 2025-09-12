@@ -3,4 +3,4 @@
 set -e
 ./modular.py init
 ./modular.py create-indexes
-./modular.py run --gunicorn
+exec ./modular.py run --gunicorn --workers "${MODULAR_API_GUNICORN_WORKERS:-2}"

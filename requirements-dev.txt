@@ -1,5 +1,6 @@
 # Load all project requirements
--r ./requirements.txt
+# -r ../requirements.txt
+-e ./
 
 # Setup source directories as editable/development distributions
 tox==3.24.5

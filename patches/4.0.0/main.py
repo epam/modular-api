@@ -1,6 +1,7 @@
 from ddtrace import tracer
 from unittest.mock import MagicMock
-tracer.configure(writer=MagicMock())
+tracer.configure()
+tracer._span_aggregator.writer = MagicMock() # noqa
 import argparse
 import json
 import logging

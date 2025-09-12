@@ -1,0 +1,36 @@
+# NOTE: this one should be tested. It seems to work in general, but
+# it's not compatible with the way modular api installs modules so after
+# building images using this Dockerfile you will have an image where modular_api
+# is intallled to .venv but modules are installed to global pip
+FROM public.ecr.aws/docker/library/python:3.10-slim as builder
+COPY --from=ghcr.io/astral-sh/uv:0.7.19 /uv /uvx /bin/
+
+WORKDIR /src
+
+COPY pyproject.toml uv.lock /src/
+
+ENV UV_NO_INSTALLER_METADATA=1
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --locked --no-install-project --no-editable --compile-bytecode --link-mode=copy
+
+
+COPY modular_api /src/modular_api
+COPY modular_api_cli /src/modular_api_cli
+COPY modular.py entrypoint.sh /src/
+RUN chmod +x /src/entrypoint.sh && \
+    rm -f /src/pyproject.toml /src/uv.lock
+
+
+FROM public.ecr.aws/docker/library/python:3.10-slim
+
+ARG MODULES_PATH=./docker_modules/
+
+COPY --from=builder /src /src
+COPY $MODULES_PATH /tmp/m3-modules
+
+WORKDIR /src
+ENV PATH=/src/.venv/bin:$PATH
+EXPOSE 8085
+
+RUN for pkg in $(ls -d /tmp/m3-modules/*/); do python modular.py install --module_path $pkg; done; rm -rf /tmp/m3-modules
+ENTRYPOINT ["/src/entrypoint.sh"]
