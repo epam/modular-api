@@ -26,5 +26,8 @@ CODE_OF_CONDUCT.md
 LICENSE
 pyrightconfig.json
 tox.ini
+.venv
+.tox
+.env
 
 **/commands_base.json

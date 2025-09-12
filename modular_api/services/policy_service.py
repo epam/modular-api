@@ -100,8 +100,7 @@ class PolicyService:
 
     @staticmethod
     def get_policies_by_name(policy_names: Iterable[str]) -> list[Policy]:
-        _LOG.info(f'Batch get policies by provided names: '
-                  f'{policy_names}')
+        _LOG.info(f'Batch get policies by provided names: {policy_names}')
         return list(Policy.batch_get(items=policy_names))
 
     @staticmethod

@@ -1,24 +1,24 @@
 import os
 
 from pynamodb.attributes import UnicodeAttribute, MapAttribute, NumberAttribute
-from pynamodb.indexes import AllProjection
+from pynamodb.indexes import AllProjection, GlobalSecondaryIndex
 
 from modular_api.helpers.constants import Env
-from modular_api.models import BaseModel, BaseGSI
+from modular_api.models import BaseModel
 
 
-class TypeTimestampIndex(BaseGSI):
+class TypeTimestampIndex(GlobalSecondaryIndex):
     class Meta:
-        index_name = f'type-timestamp-index'
+        index_name = 'type-timestamp-index'
         projection = AllProjection()
 
     type = UnicodeAttribute(hash_key=True)
     timestamp = NumberAttribute(range_key=True)
 
 
-class MountPointTimestampIndex(BaseGSI):
+class MountPointTimestampIndex(GlobalSecondaryIndex):
     class Meta:
-        index_name = f'mount_point-timestamp-index'
+        index_name = 'mount_point-timestamp-index'
         projection = AllProjection()
 
     mount_point = UnicodeAttribute(hash_key=True)

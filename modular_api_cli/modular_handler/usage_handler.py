@@ -8,6 +8,7 @@ from modular_api.helpers.constants import LOG_FOLDER, ID, TIMESTAMP, KEY
 from modular_api.helpers.decorators import CommandResponse
 from modular_api.helpers.exceptions import ModularApiBadRequestException
 from modular_api.helpers.log_helper import get_logger
+from modular_sdk.models.pynamongo.convertors import instance_as_dict
 
 _LOG = get_logger(__name__)
 
@@ -51,7 +52,7 @@ class UsageHandler:
             self.usage_service.get_stats(key, from_date, to_date)
             for key in self.usage_service.modules_info
         )
-        raw_result = [i.get_json() for i in it]
+        raw_result = [instance_as_dict(i) for i in it]
 
         if not raw_result:
             _LOG.info('No usage statistic by provided filters')

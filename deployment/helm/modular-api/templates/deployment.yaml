@@ -35,6 +35,11 @@ spec:
         - name: modular-api
           image: "{{ .Values.image.repository }}:{{ default .Chart.AppVersion .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          resources:
+            limits:
+              memory: "{{ .Values.memoryLimit }}"
+            requests:
+              memory: "{{ .Values.memoryRequest }}"
           livenessProbe:
             httpGet:
               path: '/health_check'
@@ -97,3 +102,9 @@ spec:
               value: {{ .Values.httpProxy }}
             - name: NO_PROXY
               value: {{ .Values.noProxy }}
+            - name: MODULAR_API_GUNICORN_WORKERS
+              value: {{ .Values.workers | quote }}
+            - name: MODULAR_API_CLI_LOG_LEVEL
+              value: {{ .Values.modularApiCliLogLevel | default "ERROR" }}
+            - name: MODULAR_API_SERVER_LOG_LEVEL
+              value: {{ .Values.modularApiServerLogLevel | default "ERROR" }}

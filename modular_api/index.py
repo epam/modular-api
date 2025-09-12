@@ -8,6 +8,7 @@ from pathlib import Path
 from unittest.mock import MagicMock
 from dotenv import load_dotenv
 
+from urllib.parse import urljoin
 import bottle
 import click.exceptions
 from bottle import request, Bottle, response
@@ -62,7 +63,8 @@ _LOG = get_logger(__name__)
 
 MODULE_GROUP_GROUP_OBJECT_MAPPING = {}  # name to imported module
 CONFIG = Config()  # currently keeps only commands_base.json
-tracer.configure(writer=MagicMock())  # ???
+tracer.configure()  # ???
+tracer._span_aggregator.writer = MagicMock() # noqa
 WEB_SERVICE_PATH = os.path.dirname(__file__)
 PERMISSION_SERVICE = permissions_handler_instance()
 USAGE_SERVICE = SP.usage_service
@@ -102,6 +104,11 @@ def resolve_permissions(tracer, empty_cache=False):
         return wrapper
 
     return decorator
+
+
+def normalize_path(path: str) -> str:
+    """Ensure path starts with exactly one leading slash"""
+    return urljoin('/', path)
 
 
 def get_module_group_and_associate_object() -> None:
@@ -422,7 +429,11 @@ def swagger_spec():
 
 @tracer.wrap()
 @resolve_permissions(tracer=tracer)
-def index(path: str, allowed_commands=None, user_meta=None):
+def index(
+        path: str,
+        allowed_commands: dict | None = None,
+        user_meta: dict | None = None,
+):
     _trace_id = get_trace_id(tracer=tracer)
     temp_files_list = []
     try:
@@ -435,9 +446,9 @@ def index(path: str, allowed_commands=None, user_meta=None):
             # if you are going to change exception message - please change
             # correspond text in Modular-CLI
             raise ModularApiUnauthorizedException(
-                    'The provided token has expired due to updates in '
-                    'commands meta. Please get a new token from \'/login\' '
-                    'resource')
+                "The provided token has expired due to updates in commands "
+                "meta. Please get a new token from '/login' resource"
+            )
         version_warning, error_response = __validate_cli_version(
             _trace_id=_trace_id
         )
@@ -449,10 +460,11 @@ def index(path: str, allowed_commands=None, user_meta=None):
         route_meta_mapping = generate_route_meta_mapping(
             commands_meta=allowed_commands)
 
-        command_def = route_meta_mapping.get(path)
+        command_def = route_meta_mapping.get(normalize_path(path))
         if not command_def:
-            raise ModularApiBadRequestException('Can not found requested '
-                                                'command')
+            raise ModularApiBadRequestException(
+                'Can not found requested command'
+            )
         request_body_raw = extract_and_convert_parameters(
             request=request,
             command_def=command_def
@@ -518,7 +530,7 @@ def index(path: str, allowed_commands=None, user_meta=None):
         # obj goes to click.Context. Other module CLI should use it to
         # understand what user is making the request
         response = json.loads(response)
-        _LOG.info(f'Obtained response {response} for {_trace_id} request')
+        _LOG.info(f'Response processed successfully for {_trace_id} request')
         content, code = process_response(response=response)
         payload = {key.lower(): value for key, value in response.items()}
         USAGE_SERVICE.save_stats(request=request, payload=payload)  # TODO raises Value error sometimes

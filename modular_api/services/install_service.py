@@ -7,8 +7,7 @@ import toml
 import configparser
 import subprocess
 import shlex
-from distutils.dir_util import remove_tree
-from shutil import copytree, ignore_patterns
+from shutil import copytree, ignore_patterns, rmtree
 from unittest.mock import MagicMock
 from importlib.metadata import distributions
 from packaging import version
@@ -24,7 +23,8 @@ from modular_api.version import __version__
 
 DESCRIPTOR_REQUIRED_KEYS = (CLI_PATH_KEY, MOUNT_POINT_KEY, MODULE_NAME_KEY)
 MODULAR_ADMIN_ROOT_PATH = os.path.split(os.path.dirname(__file__))[0]
-tracer.configure(writer=MagicMock())
+tracer.configure()
+tracer._span_aggregator.writer = MagicMock() # noqa
 _LOG = get_logger(__name__)
 
 
@@ -332,7 +332,7 @@ def install_module(module_path):
                                   module_name)
     if os.path.exists(path_to_module):
         _LOG.warning(f'The \'{module_name}\' module will be reinstalled')
-        remove_tree(path_to_module)
+        rmtree(path_to_module)
 
     copytree(
         module_path, destination_folder,
@@ -462,8 +462,10 @@ def uninstall_module(module_name):
 
     with open(web_service_cmd_base, 'w') as file:
         json.dump(web_service_content, file, indent=2)
-    remove_tree(
-        os.path.join(MODULAR_ADMIN_ROOT_PATH, MODULES_DIR, module_name))
+    rmtree(
+        path=os.path.join(MODULAR_ADMIN_ROOT_PATH, MODULES_DIR, module_name),
+        ignore_errors=True,
+    )
 
     _LOG.info(f'The {module_name} module was successfully uninstalled')
     return CommandResponse(

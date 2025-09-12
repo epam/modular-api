@@ -1,47 +1,59 @@
 import os
+import pymongo
 
 from modular_sdk.commons.helpers import classproperty
-from modular_sdk.connections.mongodb_connection import MongoDBConnection
-from modular_sdk.models.pynamodb_extension.base_model import \
-    ABCMongoDBHandlerMixin, \
-    RawBaseModel, RawBaseGSI
-from modular_sdk.models.pynamodb_extension.base_safe_update_model import \
-    BaseSafeUpdateModel as ModularSafeUpdateModel
-from modular_sdk.models.pynamodb_extension.pynamodb_to_pymongo_adapter import \
-    PynamoDBToPyMongoAdapter
-
+from modular_sdk.models.pynamongo.adapter import PynamoDBToPymongoAdapter
 from modular_api.helpers.constants import ServiceMode, Env
 from modular_api.services import SP
+from modular_sdk.models.pynamongo.models import Model, SafeUpdateModel
 
 
-class ModularApiMongoDBHandlerMixin(ABCMongoDBHandlerMixin):
+class MongoClientSingleton:
+    _instance = None
 
     @classmethod
-    def mongodb_handler(cls):
-        if not cls._mongodb:
+    def get_instance(cls) -> pymongo.MongoClient:
+        if cls._instance is None:
             env = SP.env
-            cls._mongodb = PynamoDBToPyMongoAdapter(
-                mongodb_connection=MongoDBConnection(
-                    mongo_uri=env.mongo_uri(),
-                    default_db_name=env.mongo_database()
+            cls._instance = pymongo.MongoClient(env.mongo_uri())
+        return cls._instance
+
+
+class PynamoDBToPymongoAdapterSingleton:
+    _instance = None
+
+    @classmethod
+    def get_instance(cls) -> PynamoDBToPymongoAdapter:
+        if cls._instance is None:
+            env = SP.env
+            cls._instance = PynamoDBToPymongoAdapter(
+                db=MongoClientSingleton.get_instance().get_database(
+                    env.mongo_database()
                 )
             )
-        return cls._mongodb
+        return cls._instance
 
     @classproperty
     def is_docker(cls) -> bool:
-        return os.getenv(Env.MODE, Env.MODE.default) in (ServiceMode.ONPREM,
-                                                         ServiceMode.PRIVATE)
+        return os.getenv(Env.MODE, Env.MODE.default) \
+            in (ServiceMode.ONPREM, ServiceMode.PRIVATE)
 
 
-class BaseModel(ModularApiMongoDBHandlerMixin, RawBaseModel):
-    pass
+class BaseModel(Model):
+    @classmethod
+    def is_mongo_model(cls) -> PynamoDBToPymongoAdapter:
+        return PynamoDBToPymongoAdapterSingleton.is_docker
+
+    @classmethod
+    def mongo_adapter(cls) -> PynamoDBToPymongoAdapter:
+        return PynamoDBToPymongoAdapterSingleton.get_instance()
 
 
-class BaseGSI(ModularApiMongoDBHandlerMixin, RawBaseGSI):
-    pass
+class BaseSafeUpdateModel(SafeUpdateModel):
+    @classmethod
+    def is_mongo_model(cls) -> PynamoDBToPymongoAdapter:
+        return PynamoDBToPymongoAdapterSingleton.is_docker
 
-
-class BaseSafeUpdateModel(ModularApiMongoDBHandlerMixin,
-                          ModularSafeUpdateModel):
-    pass
+    @classmethod
+    def mongo_adapter(cls) -> PynamoDBToPymongoAdapter:
+        return PynamoDBToPymongoAdapterSingleton.get_instance()

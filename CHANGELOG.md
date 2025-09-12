@@ -1,5 +1,30 @@
 CHANGELOG
 
+# [4.3.1] - 2025-07-31
+* add memory limit and request to helm charts
+* changed entrypoint.sh so that it started main process with exec
+* custom index creator replaced with one from modular-sdk
+
+# [4.3.0] - 2025-07-01
+* Update libraries:
+  * `gunicorn` from `==21.2.0` to `==23.0.0`
+  * `bottle` from `==0.12.25` to `==0.13.4`
+  * `pynamodb` from `==5.5.1` to `==6.1.0`
+  * `python-dateutil` from `==2.8.2` to `>=2.9.0.post0`
+  * `modular-sdk` from `==6.5.0` to `==7.1.1` (from github)
+  * `ddtrace` from `ddtrace==0.61.5` to `ddtrace==3.9.4`
+* Update code to support `ddtrace` (`tracer.configure()` and `patch_all(logging=True)`)
+* Remove `modular-cli-sdk>=2.0.0,<3.0.0` library
+* Remove `requiremets.txt`
+* Create `normalize_path` to handle the removal of `/` at the start of the path in `bottle==0.13.4`
+* Change `TypeTimestampIndex` and `MountPointTimestampIndex` to inherit from 
+`pynamodb.indexes.GlobalSecondaryIndex` instead of the custom `BaseGSI` (`modular_api.models.BaseGSI`)
+* Remove `BaseGSI` from `modular_api.models`
+* Change `get_json()` to `.attribute_values` (returns simple Python dict)
+* Change `from distutils.version import LooseVersion` to `from packaging.version import Version` (`distutils` deprecates)
+(Adjust `check_version_compatibility` function for new lib)
+* Change `from distutils.dir_util import remove_tree` to `from shutil import rmtree`
+
 # [4.2.11] - 2025-05-19
 * Fix bug in `convert_api_params` where parameters at index 0 were skipped due to a falsy value check
 
