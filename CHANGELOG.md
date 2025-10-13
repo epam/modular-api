@@ -1,5 +1,37 @@
 CHANGELOG
 
+# [4.3.5] - 2025-09-04
+### Add
+- Support for Click's native `hidden=True` parameter in command decorators
+- New metadata flag `is_command_hidden` for commands that should be hidden from help but remain executable
+- Distinction between hidden commands (hidden=True) and disabled commands (@shadow_wrapper)
+### Change
+- Command metadata extraction now detects and processes `hidden=True` parameter
+- Commands with `@shadow_wrapper` are now completely removed from metadata (marked as `is_command_disabled`)
+### Fix
+- Regex pattern in module path resolution to use raw string and properly escape literal dot
+  - Changed from `'\w*.(?=.py)'` to `r'(\w+)(?=\.py)'`
+
+# [4.3.4] - 2025-08-22
+* Fix MongoDB fork-safety warning by implementing lazy per-process connection initialization in `RateLimitMiddleware`
+  - MongoDB connections are now created after fork, ensuring proper connection handling in multi-process environments
+  - Prevents "MongoClient opened before fork" warning and potential connection issues
+
+# [4.3.3] - 2025-08-21
+[EPMCEOOS-9844]:
+* Improve command parameter extraction logic:
+  * Add comprehensive type annotations for better code maintainability
+  * Refactor `is_flag` detection to use Click's internal parameter attributes instead of string parsing
+  * Remove redundant `flag_parameters` tracking and post-processing logic
+* Enhance code readability and type safety across the module
+* Fix potential issues with flag parameter detection for CLI commands
+
+# [4.3.2] - 2025-08-18
+* Update HELM values
+* Added log level environments for m3admin in the HELM chart:
+  * `MODULAR_SDK_LOG_LEVEL`
+  * `M3ADMIN_LOG_LEVEL`
+
 # [4.3.1] - 2025-07-31
 * add memory limit and request to helm charts
 * changed entrypoint.sh so that it started main process with exec
