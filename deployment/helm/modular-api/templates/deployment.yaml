@@ -108,3 +108,7 @@ spec:
               value: {{ .Values.modularApiCliLogLevel | default "ERROR" }}
             - name: MODULAR_API_SERVER_LOG_LEVEL
               value: {{ .Values.modularApiServerLogLevel | default "ERROR" }}
+            - name: M3ADMIN_LOG_LEVEL
+              value: {{ .Values.modularApiM3adminLogLevel | default "WARNING" }}
+            - name: MODULAR_SDK_LOG_LEVEL
+              value: {{ .Values.modularApiModularSdkLogLevel | default "WARNING" }}

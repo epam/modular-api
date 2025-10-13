@@ -559,13 +559,25 @@ def index(
 
 
 class RateLimitMiddleware:
-    __slots__ = 'app', 'limiter', 'limit'
+    __slots__ = 'app', 'limit', '_storage_factory', '_limiter_instance'
 
-    def __init__(self, app: Callable, limiter: RateLimiter,
-                 limit: RateLimitItem):
+    def __init__(
+            self,
+            app: Callable,
+            storage_factory: Callable,
+            limit: RateLimitItem,
+    ):
         self.app = app
-        self.limiter = limiter
+        self._storage_factory = storage_factory
+        self._limiter_instance = None
         self.limit = limit
+
+    @property
+    def limiter(self):
+        if self._limiter_instance is None:
+            storage = self._storage_factory()
+            self._limiter_instance = MovingWindowRateLimiter(storage)
+        return self._limiter_instance
 
     def __call__(self, environ, start_response):
         if not self.limiter.hit(self.limit, environ.get('REMOTE_ADDR')):
@@ -603,22 +615,24 @@ class WSGIApplicationBuilder:
             application.error_handler[code.value] = self._build_generic_error_handler(code)
 
     def _rate_limited(self, app: Callable) -> Callable:
-        match self._env.mode():
-            case ServiceMode.SAAS:
-                storage = MemoryStorage()
-                # todo fix for saas, either implement storage for dynamodb
-                #  or move completely to mongo, or use redis just for broker
-                #  or use nginx and set rate limiting there.
-                #  This MemoryStorage performs far from perfect when multiple
-                #  processes and should not be used
-            case _:
-                storage = MongoDBStorage(
-                    uri=self._env.mongo_uri(),
-                    database_name=self._env.mongo_rate_limits_database()
-                )
+        def storage_factory():
+            match self._env.mode():
+                case ServiceMode.SAAS:
+                    return MemoryStorage()
+                    # todo fix for saas, either implement storage for dynamodb
+                    #  or move completely to mongo, or use redis just for broker
+                    #  or use nginx and set rate limiting there.
+                    #  This MemoryStorage performs far from perfect when multiple
+                    #  processes and should not be used
+                case _:
+                    return MongoDBStorage(
+                        uri=self._env.mongo_uri(),
+                        database_name=self._env.mongo_rate_limits_database()
+                    )
+
         return RateLimitMiddleware(
             app=app,
-            limiter=MovingWindowRateLimiter(storage),
+            storage_factory=storage_factory,
             limit=RateLimitItemPerSecond(self._env.api_calls_per_second_limit())
         )
 
