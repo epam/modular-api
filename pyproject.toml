@@ -13,18 +13,19 @@ dependencies = [
     'toml==0.10.2',
     'gunicorn==23.0.0',
     'bottle==0.13.4',
-    'click==7.1.2',
+    'click==8.3.0',
     'tenacity==8.4.1',
     'ddtrace==3.9.4',
-    'packaging==21.3',
+    'packaging>=25',
     'prettytable==3.9.0',
     'PyJWT==2.8.0',
     'pynamodb==6.1.0',
     'python-dateutil>=2.9.0.post0',
     'typing-extensions>=4.10.0,<5.0.0',
-    'limits==3.9.0',
-    'modular-sdk==7.1.1',
-    'python-dotenv==1.0.1'
+    'limits==5.6.0',
+    'modular-sdk==7.1.4',
+    'python-dotenv==1.0.1',
+    'modular-cli-sdk==3.1.0'
 ]
 [dependency-groups]
 dev = [

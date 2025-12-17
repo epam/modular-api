@@ -28,18 +28,34 @@ def build_param_and_value_in_click_format(param, value, secure_parameters,
     return parameters_list, log_parameters_list
 
 
-def is_valid_file_extensions_passed(meta_file_extensions,
-                                    received_file_extension):
-    if meta_file_extensions and (
-            not received_file_extension or
-            received_file_extension not in meta_file_extensions):
+# Fix 1: Enhance is_valid_file_extensions_passed() function
+def is_valid_file_extensions_passed(
+        meta_file_extensions,
+        received_file_extension,
+):
+    # Always require extensions list
+    if not meta_file_extensions:
+        raise ModularApiBadRequestException(
+            'File extensions allowlist not configured'
+        )
+
+    # Sanitize path traversal
+    sanitized = os.path.basename(received_file_extension)
+    if sanitized != received_file_extension:
+        raise ModularApiBadRequestException(
+            'File extension contains invalid path characters'
+        )
+
+    # Existing check
+    if not received_file_extension or \
+            received_file_extension not in meta_file_extensions:
         raise ModularApiBadRequestException(
             f'File must have the following extensions: '
-            f'{", ".join(meta_file_extensions)}')
+            f'{", ".join(meta_file_extensions)}'
+        )
 
 
 def process_file_with_extension(
-        file_extension: str,
         file_content: bytes,
         temp_file: str,
 ):
@@ -80,13 +96,23 @@ def convert_api_params(body, command_def, secure_parameters):
                 received_file_extension=received_file_extension
             )
 
+            safe_extension = os.path.basename(received_file_extension)
+
             uuid_short = '_'.join(str(uuid4()).split('-')[0:2])
             temp_file_key = TEMP_FILE_TEMPLATE.format(key, uuid_short)
             temp_file = os.path.join(TEMP_FILE_FOLDER_PATH, temp_file_key)
-            temp_file += received_file_extension
+            temp_file += safe_extension
+
+            # ADD THIS - Verify final path is safe
+            resolved_path = os.path.abspath(temp_file)
+            if not resolved_path.startswith(
+                    os.path.abspath(TEMP_FILE_FOLDER_PATH)
+            ):
+                raise ModularApiBadRequestException(
+                    'Invalid file path detected'
+                )
 
             process_file_with_extension(
-                file_extension=received_file_extension,
                 file_content=b64decode(value['file_content']),
                 temp_file=temp_file
             )
