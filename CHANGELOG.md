@@ -1,5 +1,21 @@
 CHANGELOG
 
+# [4.3.8] - 2025-11-11
+* Add `MODULAR_CLI_VAULT_TOKEN` and `MODULAR_CLI_VAULT_ADDR` to the `.env.example` file
+* Improve `open_json_file` with user-friendly error messages
+* Improve `README.md` 
+
+# [4.3.7] - 2025-11-03
+* Implement logic to propagate the `@deprecated` decorator to `modular-cli`
+* Add library `modular-cli-sdk==3.1.0`
+
+# [4.3.6] - 2025-10-16
+* Update libraries:
+  * `click` from `==7.1.2` to `==8.3.0`
+  * `limits` from `==3.9.0` to `==5.6.0`
+  * `packaging` from `==21.3` to `>=25`
+  * `modular-sdk` from `==7.1.1` to `==7.1.4`
+
 # [4.3.5] - 2025-09-04
 ### Add
 - Support for Click's native `hidden=True` parameter in command decorators

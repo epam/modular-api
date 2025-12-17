@@ -4,7 +4,7 @@ import inspect
 import os
 import re
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from typing import Any
 from unittest.mock import patch
 
@@ -14,6 +14,8 @@ from click.types import Choice, IntRange, FloatRange
 from modular_api.helpers.log_helper import get_logger
 
 ALLOWED_EXTENSIONS_PATTERN = r"(?<=allowed_extensions=\[)['., \w]+(?=])"
+DEPRECATION_PATTERN = r'@deprecated\((.*?)\)'
+DEPRECATED = '@deprecated'
 
 GROUP_NAME_SEPARATOR = '_'
 DEFAULT_METHOD = 'POST'
@@ -244,6 +246,55 @@ def _get_param_def_from_line(line: str) -> dict:
     return response
 
 
+def _parse_deprecated_decorator(
+        decorator_string: str,
+) -> dict | None:
+    """Parse @deprecated decorator and extract its parameters"""
+    if DEPRECATED not in decorator_string:
+        return None
+
+    # Extract content between parentheses
+    match = re.search(r'@deprecated\((.*)\)', decorator_string, re.DOTALL)
+    if not match:
+        return None
+
+    params_str = match.group(1)
+    deprecation_info = {}
+
+    # Parse parameters - handle both quoted strings and booleans
+    param_patterns = {
+        'removal_date': r"removal_date\s*=\s*['\"]([^'\"]+)['\"]",
+        'alternative': r"alternative\s*=\s*['\"]([^'\"]+)['\"]",
+        'deprecated_date': r"deprecated_date\s*=\s*['\"]([^'\"]+)['\"]",
+        'version': r"version\s*=\s*['\"]([^'\"]+)['\"]",
+        'reason': r"reason\s*=\s*['\"]([^'\"]+)['\"]",
+        'enforce_removal': r"enforce_removal\s*=\s*(True|False)",
+    }
+
+    for param_name, pattern in param_patterns.items():
+        match = re.search(pattern, params_str)
+        if match:
+            value = match.group(1)
+            if param_name == 'enforce_removal':
+                deprecation_info[param_name] = value == 'True'
+            else:
+                deprecation_info[param_name] = value
+
+    result = deprecation_info if deprecation_info else None
+    return result
+
+
+def _calculate_days_until(
+        removal_date_str: str,
+) -> int:
+    """Calculate days until removal date"""
+    try:
+        removal_date = date.fromisoformat(removal_date_str)
+        return (removal_date - date.today()).days
+    except (ValueError, AttributeError):
+        return 0
+
+
 class CommandsDefinitionsExtractor:
     DEFAULT_METHOD = 'POST'
     DEFAULT_MOUNT_POINT = '/'
@@ -349,6 +400,50 @@ class CommandsDefinitionsExtractor:
             if line.startswith('#'):
                 continue
             if '@{}.command'.format(self._group_name) in line:
+                # Look backwards for @deprecated decorator
+                deprecation_info: dict | None = None
+                look_back_index = index - 1
+                # Check up to 20 lines above for @deprecated decorator
+                while look_back_index >= 0 and (index - look_back_index) < 20:
+                    prev_line = lines[look_back_index].strip()
+
+                    # Skip empty lines
+                    if not prev_line:
+                        look_back_index -= 1
+                        continue
+                    # Stop if we hit another command decorator
+                    if prev_line.startswith(f'@{self._group_name}.command'):
+                        break
+                    # Stop if we hit a function definition (previous command)
+                    if prev_line.startswith('def '):
+                        break
+
+                    # Found @deprecated decorator
+                    if DEPRECATED in prev_line:
+                        # Collect the complete multi-line decorator
+                        deprecation_lines = []
+                        collect_index = look_back_index
+
+                        # Collect forward from @deprecated until we find the closing )
+                        while collect_index < index:
+                            current = lines[collect_index].strip()
+                            if current:  # Skip empty lines
+                                deprecation_lines.append(current)
+                                # If we found closing parenthesis, stop
+                                if ')' in current and DEPRECATED in ''.join(deprecation_lines):
+                                    # Make sure we have balanced parentheses
+                                    full_text = ''.join(deprecation_lines)
+                                    if full_text.count('(') == full_text.count(')'):
+                                        break
+                            collect_index += 1
+
+                        deprecation_line = ''.join(deprecation_lines)
+                        deprecation_info = \
+                            _parse_deprecated_decorator(deprecation_line)
+                        break
+
+                    look_back_index -= 1
+
                 # find from @{group}.command to enclosing  """ of docstring
                 command_lines = [line]
                 comment_close_sum_counter = 0
@@ -438,15 +533,20 @@ class CommandsDefinitionsExtractor:
                     secondary=default_rt,
                 )
 
-                command_definitions.update({
-                    name: {
-                        'route': route_config,
-                        'secure_parameters': secure_parameters,
-                        'files_parameters': files_parameters,
-                        'is_command_hidden': is_command_hidden,
-                        'is_command_disabled': is_command_disabled,
-                    }
-                })
+                command_config = {
+                    'route': route_config,
+                    'secure_parameters': secure_parameters,
+                    'files_parameters': files_parameters,
+                    'is_command_hidden': is_command_hidden,
+                    'is_command_disabled': is_command_disabled,
+                }
+
+                # Add deprecation info if found
+                if deprecation_info:
+                    command_config['deprecation'] = deprecation_info
+
+                command_definitions.update({name: command_config})
+
         return command_definitions
 
     def extract(self, subgroup: bool) -> dict:
