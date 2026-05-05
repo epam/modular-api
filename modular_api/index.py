@@ -18,7 +18,7 @@ from limits.storage import MongoDBStorage
 from typing import Callable
 from limits import RateLimitItemPerSecond, RateLimitItem
 from limits.storage import MemoryStorage
-from limits.strategies import MovingWindowRateLimiter, RateLimiter
+from limits.strategies import MovingWindowRateLimiter
 from modular_sdk.modular import ModularServiceProvider
 
 from modular_api.commands_generator import (
@@ -41,6 +41,7 @@ from modular_api.helpers.jwt_auth import (
 from modular_api.helpers.log_helper import get_logger
 from modular_api.helpers.params_converter import convert_api_params
 from modular_api.helpers.request_processor import generate_route_meta_mapping
+from modular_api.helpers.request_utils import safe_read_json
 from modular_api.helpers.response_processor import process_response
 from modular_api.helpers.response_utils import get_trace_id, build_response
 from modular_api.helpers.utilities import token_from_auth_header
@@ -69,6 +70,13 @@ WEB_SERVICE_PATH = os.path.dirname(__file__)
 PERMISSION_SERVICE = permissions_handler_instance()
 USAGE_SERVICE = SP.usage_service
 THREAD_LOCAL_STORAGE = ModularServiceProvider().thread_local_storage_service()
+
+# ----------------------------------------------------------
+# MEMFILE_MAX: controls max body size for request.json
+# Bodies larger than this cause 413 on request.json access
+# Increased from default ~100 KB to 2 MB
+# ----------------------------------------------------------
+bottle.BaseRequest.MEMFILE_MAX = 1024 * 1024 * 2  # 2 MB (default is 102400 ~100 KB)
 
 
 def resolve_permissions(tracer, empty_cache=False):
@@ -274,7 +282,10 @@ def login(allowed_commands, user_meta):
 @tracer.wrap()
 def refresh():
     _trace_id = get_trace_id(tracer=tracer)
-    refresh_token = request.json.get('refresh_token')
+
+    body = safe_read_json(request) or {}
+    refresh_token = body.get('refresh_token')
+
     if not refresh_token:
         return build_response(
             _trace_id=_trace_id,
@@ -380,10 +391,12 @@ def health_check():
 def stats(allowed_commands, user_meta):
     _trace_id = get_trace_id(tracer=tracer)
     entry_request = request
+
+    body = safe_read_json(entry_request) or {}
+
     required_params = [EVENT_TYPE, PRODUCT, JOB_ID, STATUS, META]
 
-    absent_params = [param for param in required_params
-                     if not entry_request.json.get(param)]
+    absent_params = [param for param in required_params if not body.get(param)]
     if absent_params:
         return build_response(
             _trace_id=_trace_id,
@@ -391,8 +404,7 @@ def stats(allowed_commands, user_meta):
             content=None
         )
 
-    payload = {param: entry_request.json.get(param)
-               for param in required_params}
+    payload = {param: body.get(param) for param in required_params}
 
     USAGE_SERVICE.save_stats(request=entry_request, payload=payload)
     return build_response(_trace_id=_trace_id, content=None)
@@ -462,8 +474,11 @@ def index(
 
         command_def = route_meta_mapping.get(normalize_path(path))
         if not command_def:
+            display_path = ' '.join(request.path.strip('/').split('/')[1:])
             raise ModularApiBadRequestException(
-                'Can not found requested command'
+                f"Command not found: '{display_path}'. "
+                "Try to re-login. If the issue persists, "
+                "contact your administrator"
             )
         request_body_raw = extract_and_convert_parameters(
             request=request,

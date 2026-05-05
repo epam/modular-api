@@ -1,3 +1,4 @@
+import importlib
 import json
 import os
 import ast
@@ -6,7 +7,6 @@ from pathlib import Path
 import toml
 import configparser
 import subprocess
-import shlex
 from shutil import copytree, ignore_patterns, rmtree
 from unittest.mock import MagicMock
 from importlib.metadata import distributions
@@ -15,6 +15,10 @@ from ddtrace import tracer
 from modular_api.helpers.constants import WINDOWS, LINUX, MODULES_DIR, \
     API_MODULE_FILE, MODULE_NAME_KEY, CLI_PATH_KEY, MOUNT_POINT_KEY, \
     TOOL_VERSION_MAPPING, DEPENDENCIES, MIN_VER
+from modular_api.services.module_validator import (
+    validate_module_cli,
+    resolve_root_group_name,
+)
 from modular_api.commands_generator import generate_valid_commands
 from modular_api.helpers.decorators import CommandResponse
 from modular_api.helpers.exceptions import ModularApiBadRequestException
@@ -28,6 +32,17 @@ tracer._span_aggregator.writer = MagicMock() # noqa
 _LOG = get_logger(__name__)
 
 
+def _strip_extras(dep: str) -> str:
+    """Strip extras from a dependency string.
+    E.g. 'modular-cli-sdk[hvac]==2.0.0' -> 'modular-cli-sdk==2.0.0'
+    """
+    before, bracket, after = dep.partition('[')
+    if not bracket:
+        return dep
+    _, _, after = after.partition(']')
+    return before + after
+
+
 def install_module_with_destination_folder(paths_to_module: str):
     """
     Installing module by path
@@ -39,33 +54,27 @@ def install_module_with_destination_folder(paths_to_module: str):
         _LOG.error(message)
         sys.exit(message)
     if os.path.isfile(paths_to_module):
-        message = f'The path {[paths_to_module]} to the module is file. ' \
-                  f'Please specify the path to folder of the module which ' \
-                  f'consist of setup.py.'
+        message = (
+            f'The path {[paths_to_module]} to the module is file. '
+            f'Please specify the path to folder of the module which '
+            f'consist of setup.py.'
+        )
         _LOG.error(message)
         sys.exit(message)
     _LOG.info(f"Going to execute pip install command for {paths_to_module}")
-    os_name = os.name
-    command = f'pip install -e {paths_to_module}'
-    if os_name == WINDOWS:
-        with subprocess.Popen(
-                command,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-        ) as terminal_process:
-            stdout, stderr = terminal_process.communicate()
-
-    elif os_name == LINUX:
-        with subprocess.Popen(
-                shlex.split(command),
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-        ) as terminal_process:
-            stdout, stderr = terminal_process.communicate()
-    else:
-        message = f'The {os_name} OS is not supported by tool.'
+    if os.name not in (WINDOWS, LINUX):
+        message = f'The {os.name} OS is not supported by tool.'
         _LOG.error(message)
         sys.exit(message)
+
+    command = [sys.executable, '-m', 'pip', 'install', '-e', paths_to_module]
+    with subprocess.Popen(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+    ) as terminal_process:
+        stdout, stderr = terminal_process.communicate()
+
     if stdout is not None:
         stdout = stdout.decode('utf-8')
         _LOG.info(f"Out: {stdout}")
@@ -200,8 +209,9 @@ def extract_module_requirements_toml(module_path: str) -> list[str]:
 
 
 def check_module_requirements_compatibility(
-    module_dependencies: list[str], module_name: str
-):
+        module_dependencies: list[str],
+        module_name: str
+) -> None:
     """
     Checks if the version requirements for the dependencies are compatible with
     the modules currently installed in the API's dependency list
@@ -222,9 +232,8 @@ def check_module_requirements_compatibility(
     # check sticking for a specific version
     if not module_dependencies:
         return
-    for req in module_dependencies:
-        if "[" in req:
-            continue
+    for raw_req in module_dependencies:
+        req = _strip_extras(raw_req)
         # todo refactor - stick to major version
         if ">=" in req:
             continue
@@ -237,10 +246,9 @@ def check_module_requirements_compatibility(
             sys.exit(message)
 
     # check versions compatibility
-    for mod_req in module_dependencies:
+    for raw_mod_req in module_dependencies:
+        mod_req = _strip_extras(raw_mod_req)
         for api_req in modular_api_dependencies:
-            if "[" in mod_req:
-                continue
             try:
                 # todo refactor - stick to major version
                 mod_req_name, mod_req_ver = mod_req.split('==')
@@ -261,17 +269,22 @@ def check_module_requirements_compatibility(
 
 
 @tracer.wrap()
-def install_module(module_path):
-    """
-    :param module_path: the path to the installing module
-    :return: none
-    """
+def install_module(
+        module_path: str,
+        *,
+        force: bool = False,
+        extended_checks: bool = False,
+):
     extract_dependencies_func_map = {
         'setup.py': extract_module_requirements_setup_py,
         'setup.cfg': extract_module_requirements_setup_cfg,
         'pyproject.toml': extract_module_requirements_toml
     }
     setup_files = ["pyproject.toml", "setup.cfg", "setup.py"]
+
+    # Accumulates validation output to include in final CommandResponse
+    validation_note = ''
+
     _LOG.info(f'Going to install module from path: {module_path}')
     if not os.path.isdir(module_path):
         incorrect_path_message = (
@@ -284,52 +297,173 @@ def install_module(module_path):
         api_module_config = json.load(file)
 
     _LOG.info('Checking module descriptor properties')
-    if not all(
-        [key in api_module_config.keys() for key in DESCRIPTOR_REQUIRED_KEYS]
-    ):
-        descriptor_key_absence_message = \
-            f'Descriptor file must contains the following keys: ' \
-            f'{", ".join(DESCRIPTOR_REQUIRED_KEYS)}'
+    missing_keys = set(DESCRIPTOR_REQUIRED_KEYS) - api_module_config.keys()
+    if missing_keys:
+        descriptor_key_absence_message = (
+            f'Descriptor file is missing required key(s): '
+            f'{", ".join(sorted(missing_keys))}'
+        )
         _LOG.error(descriptor_key_absence_message)
         sys.exit(descriptor_key_absence_message)
 
-    # Check each setup file by priority
+    # ── Find setup file ────────────────────────────────────────
+    setup_file_path = None
     for setup_file in setup_files:
-        setup_file_path = os.path.join(module_path, setup_file)
-        if not os.path.isfile(setup_file_path):
-            continue  # Skip if file doesn't exist
+        candidate = os.path.join(module_path, setup_file)
+        if os.path.isfile(candidate):
+            setup_file_path = candidate
+            break
 
-        _LOG.info('Checking module requirements compatibility')
-        try:
-            _LOG.info(f"Reading dependencies from: {setup_file}")
-            extract_func = extract_dependencies_func_map[setup_file]
-            module_dependencies = extract_func(
-                module_path=setup_file_path
-            )
-        except KeyError:
-            _LOG.error(f'Unsupported setup file: {setup_file}')
-            sys.exit(f'Unsupported setup file: {setup_file}')
-
-        check_module_requirements_compatibility(
-            module_dependencies=module_dependencies,
-            module_name=api_module_config.get('module_name')
-        )
-        # Found valid setup file, break the loop
-        _LOG.info(f"Successfully loaded dependencies from {setup_file}")
-        break
-    else:
+    if not setup_file_path:
         _LOG.error("No valid setup file found")
         sys.exit("No valid setup file found")
+
+    # ── Check dependencies ─────────────────────────────────────
+    _LOG.info('Checking module requirements compatibility')
+    try:
+        _LOG.info(
+            f"Reading dependencies from: "
+            f"{os.path.basename(setup_file_path)}"
+        )
+        extract_func = extract_dependencies_func_map[
+            os.path.basename(setup_file_path)
+        ]
+        module_dependencies = extract_func(module_path=setup_file_path)
+    except KeyError:
+        _LOG.error(f'Unsupported setup file: {setup_file_path}')
+        sys.exit(f'Unsupported setup file: {setup_file_path}')
+
+    check_module_requirements_compatibility(
+        module_dependencies=module_dependencies,
+        module_name=api_module_config.get('module_name')
+    )
+    _LOG.info(
+        f"Successfully loaded dependencies from "
+        f"{os.path.basename(setup_file_path)}"
+    )
 
     _LOG.info('Checking module dependencies')
     check_module_requirements(api_module_config)
 
-    modular_admin_path, _ = os.path.split(os.path.dirname(__file__))
-    destination_folder = os.path.join(modular_admin_path, MODULES_DIR,
-                                      api_module_config[MODULE_NAME_KEY])
+    # ── Validate CLI structure ─────────────────────────────────
+    cli_path = os.path.join(
+        module_path,
+        *api_module_config[CLI_PATH_KEY].split('/')
+    )
     module_name = api_module_config[MODULE_NAME_KEY]
-    path_to_module = os.path.join(MODULAR_ADMIN_ROOT_PATH, MODULES_DIR,
-                                  module_name)
+
+    if os.path.isdir(cli_path):
+        _LOG.info('Validating CLI module structure')
+        try:
+            root_group_name = resolve_root_group_name(setup_file_path)
+        except Exception as e:
+            _LOG.warning(
+                f'Could not resolve root group name: {e}. '
+                f'Skipping CLI validation'
+            )
+            root_group_name = None
+
+        if root_group_name:
+            validation = validate_module_cli(
+                cli_path=cli_path,
+                root_group_name=root_group_name,
+                extended_checks=extended_checks,
+            )
+
+            # Sanity check: if the validator scanned zero files,
+            # something is wrong (e.g. CLI files are nested in a
+            # subdirectory the scanner doesn't see). Surface that
+            # loudly instead of silently passing.
+            if not validation.scanned_files:
+                _LOG.warning(
+                    f'CLI validator found no Python files in '
+                    f'\'{cli_path}\'. Validation effectively skipped. '
+                    f'Check that cli_path in api_module.json points to '
+                    f'the directory that actually contains the CLI files.'
+                )
+                validation_note = (
+                    f'WARNING: CLI validator scanned 0 files in '
+                    f'\'{cli_path}\'. Validation was skipped. Check '
+                    f'cli_path in api_module.json.\n\n'
+                )
+
+            elif not validation.can_install:
+                # Errors present
+                report = validation.format_report(
+                    show_warnings=bool(validation.warnings),
+                    show_infos=extended_checks,
+                    force_install=force,
+                )
+                if force:
+                    validation_note = (
+                        f'{report}\n\n'
+                        f'WARNING: --force flag set. Proceeding with '
+                        f'installation despite '
+                        f'{len(validation.errors)} validation '
+                        f'error(s).\n\n'
+                    )
+                    _LOG.warning(
+                        f'Force-installing with '
+                        f'{len(validation.errors)} error(s)'
+                    )
+                else:
+                    sys.exit(
+                        f'CLI structure validation failed for '
+                        f'\'{module_name}\' with '
+                        f'{len(validation.errors)} error(s).\n'
+                        f'{report}\n\n'
+                        f'Use --force flag to install anyway.'
+                    )
+            elif validation.warnings:
+                # No errors but warnings present - always surface them
+                report = validation.format_report(
+                    show_warnings=True,
+                    show_infos=extended_checks,
+                )
+                validation_note = (
+                    f'{report}\n\n'
+                    f'CLI validation passed with '
+                    f'{len(validation.warnings)} warning(s).\n\n'
+                )
+            elif extended_checks:
+                # No errors, no warnings, but user explicitly asked for
+                # the full report via -rec. Always show it.
+                report = validation.format_report(
+                    show_warnings=True,
+                    show_infos=True,
+                )
+                validation_note = f'{report}\n\n'
+                _LOG.info(
+                    f'CLI validation passed. Scanned '
+                    f'{len(validation.scanned_files)} file(s) with '
+                    f'{len(validation.infos)} info(s)'
+                )
+            else:
+                _LOG.info(
+                    f'CLI validation passed. Scanned '
+                    f'{len(validation.scanned_files)} file(s)'
+                )
+                if validation.infos:
+                    _LOG.info(
+                        f'{len(validation.infos)} info-level '
+                        f'recommendation(s) available - run '
+                        f'"modular validate -path ... -rec" to see them'
+                    )
+    else:
+        _LOG.warning(
+            f'CLI path \'{cli_path}\' not found. '
+            f'Skipping CLI structure validation'
+        )
+    # ── End validation ─────────────────────────────────────────
+
+    modular_admin_path, _ = os.path.split(os.path.dirname(__file__))
+    destination_folder = os.path.join(
+        modular_admin_path, MODULES_DIR,
+        api_module_config[MODULE_NAME_KEY],
+    )
+    path_to_module = os.path.join(
+        MODULAR_ADMIN_ROOT_PATH, MODULES_DIR, module_name,
+    )
     if os.path.exists(path_to_module):
         _LOG.warning(f'The \'{module_name}\' module will be reinstalled')
         rmtree(path_to_module)
@@ -338,32 +472,47 @@ def install_module(module_path):
         module_path, destination_folder,
         ignore=ignore_patterns(
             '*.tox', 'build', '*.egg-info', '*.git', 'tests',
-            'requirements-dev.txt', 'tox.ini', 'logs')
+            'requirements-dev.txt', 'tox.ini', 'logs',
+        )
     )
-    install_module_with_destination_folder(paths_to_module=destination_folder)
+    install_module_with_destination_folder(
+        paths_to_module=destination_folder,
+    )
 
-    _LOG.info(f'Copy {api_module_config[MODULE_NAME_KEY]} module files '
-              f'to {destination_folder}')
+    _LOG.info(
+        f'Copy {api_module_config[MODULE_NAME_KEY]} module files '
+        f'to {destination_folder}'
+    )
     mount_point = api_module_config[MOUNT_POINT_KEY]
+    importlib.invalidate_caches()
     valid_methods = generate_valid_commands(
         destination_folder=destination_folder,
-        path_to_scan=os.path.join(modular_admin_path, MODULES_DIR,
-                                  api_module_config[MODULE_NAME_KEY],
-                                  *api_module_config[CLI_PATH_KEY].split('/')),
+        path_to_scan=os.path.join(
+            modular_admin_path, MODULES_DIR,
+            api_module_config[MODULE_NAME_KEY],
+            *api_module_config[CLI_PATH_KEY].split('/'),
+        ),
         mount_point=mount_point,
-        path_to_setup_file_in_module=setup_file_path
+        path_to_setup_file_in_module=setup_file_path,
     )
-    web_service_cmd_base = os.path.join(modular_admin_path,
-                                        'web_service',
-                                        'commands_base.json')
-    _LOG.info(f'Updating commands meta file by path: {web_service_cmd_base}')
-    write_generated_meta_to_file(path_to_file=web_service_cmd_base,
-                                 mount_point=mount_point,
-                                 groups_meta=valid_methods)
-    message = f'{api_module_config[MODULE_NAME_KEY].capitalize()} ' \
-              f'successfully installed'
-    _LOG.info(message)
-    return CommandResponse(message=message)
+    web_service_cmd_base = os.path.join(
+        modular_admin_path, 'web_service', 'commands_base.json',
+    )
+    _LOG.info(
+        f'Updating commands meta file by path: {web_service_cmd_base}'
+    )
+    write_generated_meta_to_file(
+        path_to_file=web_service_cmd_base,
+        mount_point=mount_point,
+        groups_meta=valid_methods,
+    )
+
+    success = (
+        f'{api_module_config[MODULE_NAME_KEY].capitalize()} '
+        f'successfully installed'
+    )
+    _LOG.info(success)
+    return CommandResponse(message=f'{validation_note}{success}')
 
 
 def check_uninstall(api_module_config):

@@ -2,6 +2,7 @@ import urllib
 
 from modular_api.helpers.exceptions import ModularApiInternalException, \
     ModularApiBadRequestException, ModularApiUnauthorizedException
+from modular_api.helpers.request_utils import safe_read_json
 from pynamodb.exceptions import GetError
 from modular_api.helpers.log_helper import get_logger
 
@@ -99,7 +100,10 @@ def extract_and_convert_parameters(request, command_def):
                 param = urllib.parse.unquote(param_name)
                 result[param] = value
     else:
-        result = {} if not request.json else request.json
+        # FIXED: use safe_read_json instead of request.json
+        # request.json enforces MEMFILE_MAX and raises 413 on large bodies
+        # safe_read_json reads from request.body directly (no size limit)
+        result = safe_read_json(request) or {}
     return result
 
 

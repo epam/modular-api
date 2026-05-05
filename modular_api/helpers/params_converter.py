@@ -33,11 +33,9 @@ def is_valid_file_extensions_passed(
         meta_file_extensions,
         received_file_extension,
 ):
-    # Always require extensions list
+    # click.File type has no extension restriction - skip check
     if not meta_file_extensions:
-        raise ModularApiBadRequestException(
-            'File extensions allowlist not configured'
-        )
+        return
 
     # Sanitize path traversal
     sanitized = os.path.basename(received_file_extension)

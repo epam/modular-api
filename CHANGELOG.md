@@ -1,4 +1,71 @@
-CHANGELOG
+# CHANGELOG
+
+# [4.3.26] - 2026-04-21
+* Add CLI structure validation to `modular install` that catches modular-api compatibility issues before installation:
+  - Validate file naming conventions against `commands_generator.py` expectations (`__resolve_group_name()` splits on `_`, so each segment becomes a group name)
+  - Verify hierarchy integrity: every subgroup file (e.g. `settings_sre_config.py`) requires its parent file (`settings_sre.py`) to exist
+  - Check that `@click.group()` function names match the last filename segment, which `_get_group_from_module()` uses for lookup — a mismatch silently drops group metadata (description, hidden flag)
+  - Enforce max 3 nesting levels (`module > group > subgroup`); `generate_valid_commands()` only handles depths 1–3 and silently skips intermediate parents at depth 4+
+  - Detect duplicate command names within a file, command/group naming violations, missing docstrings, and required-after-optional option ordering
+  - Extended checks via `-rec` / `--recommendations` flag: missing type hints, return types, option help text, decorator-to-function parameter alignment, and `add_command()` consistency
+  - Three severity levels: ERROR (blocks install), WARNING and INFO (advisory). Installation is blocked when errors are found unless `--force` is passed
+  - Report adapts labels to match the active filter: "no errors" when only errors are shown (default), "no issues" when all severities are shown (`-rec`)
+
+# [4.3.25] - 2026-04-17
+* Fix stats collection no longer crashes when the requested route cannot be mapped to a product.
+Previously an `AttributeNullError` turned the intended 400 response into a 500
+* Improve "command not found" error message to display the command in CLI format and suggest re-login
+
+# [4.3.24] - 2026-04-09
+* Fix module installation failing to resolve newly installed dependencies
+  (e.g. `tabulate`) inside containers:
+  - Replace bare `pip install -e` with `sys.executable -m pip install -e` to
+    guarantee packages are installed into the same Python environment that is
+    running the server — bare `pip` can resolve to a different interpreter in
+    containerized / virtualenv setups
+  - Add `importlib.invalidate_caches()` after the subprocess `pip install`
+    completes and before `generate_valid_commands()` so the running process
+    can discover packages that were installed after startup
+  - Pass the command as a list to `subprocess.Popen` instead of a formatted
+    string to avoid shell-parsing issues with spaces in `sys.executable` or
+    module paths, and remove the now-redundant Windows / Linux branching
+
+# [4.3.23] - 2026-04-08
+* Fix IAM permission filtering silently dropping 3+ level nested command groups
+  (e.g. `reports > copilot > users > reports`):
+  - Replace hardcoded 3-level nested `for` loops in `filter_meta_by_deny_priority()`
+    and `filter_meta_by_allow_priority()` with recursive helpers `_deny_filter_body()`
+    and `_allow_filter_body()` that support arbitrary group nesting depth
+  - Previously, groups nested deeper than `module > group > subgroup` were treated
+    as commands during permission checks — the allow filter could not find a matching
+    policy entry (e.g. looked for `reports/copilot:users` instead of traversing into
+    `reports/copilot/users:*`), causing all children to be silently removed and
+    returning `"body": {}` to the CLI
+  - Policy format remains backward-compatible; deeper paths use the natural
+    extension: `g1/g2/.../gN:*` or `g1/g2/.../gN:command_name`
+  - Sort policy once per filter pass instead of once per `check_permission()` call
+
+# [4.3.22] - 2026-04-02
+* Fix HTTP 413 error when processing large JSON request bodies
+  - Replace `request.json` with direct body reading (`safe_read_json`) to bypass Bottle's `MEMFILE_MAX` size limit
+  - Increase `bottle.BaseRequest.MEMFILE_MAX` from 102400 (~100 KB) to 2 MB as an additional safeguard
+* Replace non-ASCII characters with ASCII characters
+
+# [4.3.21] - 2026-03-30
+* Add `type=click.File()` support — old code ignores it entirely
+* Add `@click.option('--email', '-e', 'emails')` support — old code produces wrong name
+* Update library `modular-cli-sdk` from `==3.1.2` to `==3.1.4` for fixing backward compatibility issues
+
+# [4.3.20] - 2026-03-19
+* Fix dependency version conflict check skipping packages with extras specifiers:
+  - Add `_strip_extras()` helper using `str.partition` to normalize dependency 
+    strings (e.g. `modular-cli-sdk[hvac]==2.0.0` → `modular-cli-sdk==2.0.0`)
+  - Replace `if "[" in req: continue` skip logic with extras stripping in both 
+    version-pinning and version-conflict validation loops within 
+    `check_module_requirements_compatibility()` in `module_service.py`
+  - Previously, dependencies containing extras brackets were entirely excluded 
+    from compatibility checks, allowing `pip install -e` to silently downgrade 
+    shared packages and corrupt the environment at runtime
 
 # [4.3.19] - 2026-03-10
 * Fix private module description not appearing in CLI help output:

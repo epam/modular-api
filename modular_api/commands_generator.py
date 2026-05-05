@@ -10,7 +10,7 @@ from unittest.mock import patch
 from enum import Enum
 
 from click import Group
-from click.types import Choice, IntRange, FloatRange
+from click.types import Choice, IntRange, FloatRange, File as ClickFile
 
 from modular_api.helpers.log_helper import get_logger
 
@@ -30,6 +30,7 @@ FILE_CHECKS_CALLBACKS: list[str] = [
     'callback=validate_file_required',
     'callback=validate_file_optional',
     'callback=create_file_if_it_not_exists',
+    'type=click.File',
 ]
 
 REQUIRED_PARAM_CALLBACKS: list[str] = [
@@ -80,7 +81,7 @@ def get_file_names_which_contains_admin_commands(
     return listdir
 
 
-def _resolve_root_group_name(file_content: list[str]) -> str:
+def extract_root_group_name(file_content: list[str]) -> Any:
     root_group_name = None
     for idx, line in enumerate(file_content):
         if 'project.scripts' in line or 'console_scripts' in line:
@@ -292,6 +293,9 @@ def _get_param_def_from_line(line: str) -> dict:
                 file_extension = [
                     extension.strip("\"'") for extension in allowed_extensions
                 ]
+            # click.File has no extension list — leave file_extension=None
+            # is_valid_file_extensions_passed() handles None by skipping check
+
         if re.match(r'^--[a-z]', part):
             param_name = str(part).replace('--', '')
         if re.match(r'^-[a-zA-Z]', part):
@@ -311,6 +315,9 @@ def _get_param_def_from_line(line: str) -> dict:
                 click_type = 'enum'
             if 'IntRange' in click_type or 'float' in click_type:
                 click_type = 'num'
+            # treat click.File as str (path string passed through API)
+            if 'File' in click_type:
+                click_type = 'str'
             if click_type not in ['list', 'str', 'bool', 'enum', 'num']:
                 click_type = 'str'
             param_type = click_type
@@ -329,6 +336,7 @@ def _get_param_def_from_line(line: str) -> dict:
         response['convert_content_to_file'] = is_path_to_file
     if file_extension:
         response['temp_file_extension'] = file_extension
+    # NOTE: no temp_file_extension when click.File — intentional
     return response
 
 
@@ -355,7 +363,7 @@ def generate_valid_commands(
     with open(path_to_setup_file_in_module) as file:
         file_content = file.readlines()
 
-    root_group_name: str = _resolve_root_group_name(file_content=file_content)
+    root_group_name: str = extract_root_group_name(file_content=file_content)
 
     for group_file in sorted(listdir):
         group_full_name_list, group_name = \
@@ -449,7 +457,8 @@ class CommandsDefinitionsExtractor:
         'choice': 'enum',
         'boolean': 'bool',
         'text': 'str',
-        'integer': 'str'
+        'integer': 'str',
+        'filename': 'str',
     }
 
     def __init__(self, group_name, module, mount_point=DEFAULT_MOUNT_POINT):
@@ -459,6 +468,23 @@ class CommandsDefinitionsExtractor:
         self._Command = getattr(
             importlib.import_module('click.core'), 'Command'
         )
+
+    @staticmethod
+    def _get_canonical_name(param) -> str:
+        """
+        Derive the plain CLI parameter name from the primary long option.
+
+        @click.option('--email', '-e', 'emails')
+          param.name  = 'emails'          <- Python variable (may differ!)
+          param.opts  = ['--email', '-e']
+          returns     -> 'email'          <- what the CLI actually accepts
+        """
+        for opt in param.opts:
+            if opt.startswith('--'):
+                # '--email' -> 'email';
+                return opt[2:].replace('-', '_')
+        # short-option-only fallback (rare)
+        return param.name
 
     @staticmethod
     def _get_alias(opts: list) -> str | None:
@@ -765,13 +791,18 @@ class CommandsDefinitionsExtractor:
                             in REQUIRED_PARAM_CALLBACKS) or param.required
                 param_help = param.help.replace('* ', '') if param.help else ''
                 param_meta: dict[str, Any] = {
-                    'name': param.human_readable_name,
+                    'name': self._get_canonical_name(param),
                     'alias': self._get_alias(param.opts),
                     'required': required,
                     'description': param_help,
                     'type': self.click_to_our_types_mapping \
                         .get(param.type.name, param.type.name)
                 }
+
+                # Handle click.File via introspection
+                if isinstance(param.type, ClickFile):
+                    param_meta['convert_content_to_file'] = True
+                    param_meta['type'] = 'str'
 
                 if getattr(param, 'is_flag', False):
                     param_meta['is_flag'] = True
@@ -822,7 +853,8 @@ class CommandsDefinitionsExtractor:
                 for param in command_params:
                     param_name = param.get('name')
                     if param_name in files_parameters:
-                        param.update(files_parameters[param_name])
+                        if 'convert_content_to_file' not in param:
+                            param.update(files_parameters[param_name])
             body['body'].update(routes_and_secured_params.get(name, {}))
 
         definitions_copy = copy.deepcopy(definitions)
