@@ -41,7 +41,7 @@ jmespath==1.0.1
     #   botocore
 limits==5.6.0
     # via modular-api (pyproject.toml)
-modular-cli-sdk==3.1.0
+modular-cli-sdk==3.1.2
     # via modular-api (pyproject.toml)
 modular-sdk==7.1.4
     # via modular-api (pyproject.toml)

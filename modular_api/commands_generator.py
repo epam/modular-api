@@ -7,6 +7,7 @@ import sys
 from datetime import datetime, timedelta, date
 from typing import Any
 from unittest.mock import patch
+from enum import Enum
 
 from click import Group
 from click.types import Choice, IntRange, FloatRange
@@ -14,14 +15,13 @@ from click.types import Choice, IntRange, FloatRange
 from modular_api.helpers.log_helper import get_logger
 
 ALLOWED_EXTENSIONS_PATTERN = r"(?<=allowed_extensions=\[)['., \w]+(?=])"
-DEPRECATION_PATTERN = r'@deprecated\((.*?)\)'
-DEPRECATED = '@deprecated'
+DEPRECATED_COMMAND = '@deprecated_command'
+DEPRECATED_GROUP = '@deprecated_group'
 
 GROUP_NAME_SEPARATOR = '_'
 DEFAULT_METHOD = 'POST'
 
 _LOG = get_logger(__name__)
-
 
 FILE_CHECKS_CALLBACKS: list[str] = [
     'callback=check_path_exists_required',
@@ -94,90 +94,176 @@ def _resolve_root_group_name(file_content: list[str]) -> str:
     return root_group_name[0]
 
 
-def generate_valid_commands(
-        destination_folder: str,
-        path_to_setup_file_in_module: str,
-        path_to_scan: str | None = None,
-        mount_point: str = '',
-        is_private_mode_enabled: bool = False,
+def _is_json_serializable_default(value) -> bool:
+    """Check if a default value is JSON serializable (not a Click sentinel)"""
+    return isinstance(value, (bool, int, float, str, list, dict, type(None)))
+
+
+def _get_group_from_module(module, group_name: str) -> Group | None:
+    """
+    Find and return the Click Group object from a module by name.
+
+    :param module: The imported module to search in
+    :param group_name: The name of the group to find
+    :return: The Click Group object or None if not found
+    """
+    for entity in dir(module):
+        obj = getattr(module, entity)
+        if isinstance(obj, Group) and obj.name == group_name:
+            return obj
+    return None
+
+
+def _get_group_metadata(
+        module,
+        group_name: str,
 ) -> dict:
-    # generate or compute the path to process
-    _LOG.info(f'[commands] Path to scan: {path_to_scan}')
+    """
+    Extract metadata from a Click Group object.
 
-    # iterate files
-    valid_methods: dict[str, Any] = {'type': 'module', 'body': {}}
-    listdir: list[str] = \
-        get_file_names_which_contains_admin_commands(path_to_scan=path_to_scan)
+    :param module: The imported module containing the group
+    :param group_name: The name of the group
+    :return: Dictionary containing is_group_hidden, description, and deprecation
+    """
+    group_obj = _get_group_from_module(module, group_name)
+    if group_obj:
+        metadata = {
+            'is_group_hidden': getattr(group_obj, 'hidden', False),
+            'description': group_obj.help or '',
+        }
 
-    if destination_folder not in sys.path:
-        sys.path.append(destination_folder)
+        # Check for deprecation info (set by @deprecated_group decorator)
+        deprecation_info = getattr(group_obj, '_deprecation_info', None)
+        if deprecation_info:
+            metadata['deprecation'] = deprecation_info
 
-    with open(path_to_setup_file_in_module) as file:
-        file_content = file.readlines()
+        return metadata
+    return {
+        'is_group_hidden': False,
+        'description': '',
+    }
 
-    root_group_name: str = _resolve_root_group_name(file_content=file_content)
 
-    for group_file in sorted(listdir):
-        group_full_name_list, group_name = \
-            resolve_group_name(group_file=group_file)
-        is_private_group = (
-                isinstance(group_full_name_list, list) and
-                group_full_name_list[0] == 'private' or
-                group_full_name_list == 'private'
-        )
+def _parse_deprecated_decorator(
+        decorator_string: str,
+        decorator_name: str = DEPRECATED_COMMAND,
+) -> dict | None:
+    """
+    Parse @deprecated_command or @deprecated_group decorator and extract its
+    parameters.
 
-        is_subgroup = (
-                isinstance(group_full_name_list, list) and
-                not is_private_group
-        )
-        is_root_group = root_group_name == group_name
-        if is_private_group ^ is_private_mode_enabled:
-            continue
+    :param decorator_string: The full decorator string (may be multi-line)
+    :param decorator_name: The decorator name to parse
+    :return: Dictionary with deprecation info or None
+    """
+    if decorator_name not in decorator_string:
+        return None
 
-        # from index.py -> get_module_group_and_associate_object
-        module_spec = importlib.util.spec_from_file_location(
-            group_name,
-            os.path.join(path_to_scan, group_file)
-        )
-        imported_module = importlib.util.module_from_spec(module_spec)
-        with patch(
-                target='botocore.client.BaseClient._make_api_call',
-                return_value=DICT_WITH_CREDS_FOR_MOCK,
-        ):
-            module_spec.loader.exec_module(imported_module)
+    # Build regex pattern based on decorator name
+    pattern = rf'{re.escape(decorator_name)}\((.*)\)'
+    match = re.search(pattern, decorator_string, re.DOTALL)
+    if not match:
+        return None
 
-        commands = CommandsDefinitionsExtractor(
-            group_name=group_name,
-            module=imported_module,
-            mount_point=mount_point,
-        ).extract(subgroup=is_subgroup)
-        group_meta: dict = {"type": "group", 'body': commands}
-        if is_subgroup:
-            if not valid_methods['body'].get(group_full_name_list[0]):
-                valid_methods['body'][group_full_name_list[0]] = {'body': {}}
-            if isinstance(group_full_name_list, list) \
-                    and len(group_full_name_list) > 2:
-                if not valid_methods['body'][group_full_name_list[0]]['body'] \
-                        .get(group_full_name_list[1]):
-                    valid_methods['body'][group_full_name_list[0]]['body'] \
-                        [group_full_name_list[1]]: dict = {'body': {}}
-                # todo refactor this
-                valid_methods['body'][group_full_name_list[0]]['body']\
-                    [group_full_name_list[1]]['body'] \
-                    .update({group_name: group_meta})
+    params_str = match.group(1)
+    deprecation_info = {}
+
+    # Parse parameters - handle both quoted strings and booleans
+    param_patterns = {
+        'removal_date': r"removal_date\s*=\s*['\"]([^'\"]+)['\"]",
+        'alternative': r"alternative\s*=\s*['\"]([^'\"]+)['\"]",
+        'deprecated_date': r"deprecated_date\s*=\s*['\"]([^'\"]+)['\"]",
+        'version': r"version\s*=\s*['\"]([^'\"]+)['\"]",
+        'reason': r"reason\s*=\s*['\"]([^'\"]+)['\"]",
+        'enforce_removal': r"enforce_removal\s*=\s*(True|False)",
+        'warn_on_subcommands': r"warn_on_subcommands\s*=\s*(True|False)",
+    }
+
+    for param_name, pattern in param_patterns.items():
+        match = re.search(pattern, params_str)
+        if match:
+            value = match.group(1)
+            if param_name in ('enforce_removal', 'warn_on_subcommands'):
+                deprecation_info[param_name] = value == 'True'
             else:
-                valid_methods['body'][group_full_name_list[0]]['body'] \
-                    .update({group_name: group_meta})
-        elif is_root_group:
-            root_commands_meta = group_meta.pop('body')
-            for root_command_meta in root_commands_meta.values():
-                root_command_meta['type'] = 'root command'
-            valid_methods['body'].update(root_commands_meta)
-        else:
-            valid_methods['body'][group_name] = group_meta
-    if destination_folder in sys.path:
-        sys.path.remove(destination_folder)
-    return valid_methods
+                deprecation_info[param_name] = value
+
+    return deprecation_info if deprecation_info else None
+
+
+def _parse_group_deprecation_from_source(
+        module,
+        group_name: str,
+) -> dict | None:
+    """
+    Parse @deprecated_group decorator from module source code.
+
+    This is a fallback method if _deprecation_info attribute is not set on
+    the group.
+
+    :param module: The imported module
+    :param group_name: The name of the group
+    :return: Dictionary with deprecation info or None
+    """
+    try:
+        source = inspect.getsource(module)
+    except (OSError, TypeError):
+        return None
+
+    lines = source.split('\n')
+
+    for idx, line in enumerate(lines):
+        # Look for group definition
+        if f"@group(name='{group_name}')" in line or \
+                f'@group(name="{group_name}")' in line or \
+                f"@group(name={group_name})" in line:
+            # Look backwards for @deprecated_group decorator
+            look_back_index = idx - 1
+            while look_back_index >= 0 and (idx - look_back_index) < 20:
+                prev_line = lines[look_back_index].strip()
+
+                if not prev_line:
+                    look_back_index -= 1
+                    continue
+
+                # Stop if we hit a function definition (previous group)
+                if prev_line.startswith('def '):
+                    break
+
+                if DEPRECATED_GROUP in prev_line:
+                    # Collect the complete multi-line decorator
+                    deprecation_lines = []
+                    collect_index = look_back_index
+
+                    while collect_index < idx:
+                        current = lines[collect_index].strip()
+                        if current:
+                            deprecation_lines.append(current)
+                            if ')' in current and DEPRECATED_GROUP in ''.join(
+                                    deprecation_lines):
+                                full_text = ''.join(deprecation_lines)
+                                if full_text.count('(') == full_text.count(')'):
+                                    break
+                        collect_index += 1
+
+                    deprecation_line = ''.join(deprecation_lines)
+                    return _parse_deprecated_decorator(
+                        deprecation_line,
+                        decorator_name=DEPRECATED_GROUP
+                    )
+
+                look_back_index -= 1
+
+    return None
+
+
+def _calculate_days_until(removal_date_str: str) -> int:
+    """Calculate days until removal date."""
+    try:
+        removal_date = date.fromisoformat(removal_date_str)
+        return (removal_date - date.today()).days
+    except (ValueError, AttributeError):
+        return 0
 
 
 def __resolve_group_name(group_filename: str) -> str | list:
@@ -246,53 +332,125 @@ def _get_param_def_from_line(line: str) -> dict:
     return response
 
 
-def _parse_deprecated_decorator(
-        decorator_string: str,
-) -> dict | None:
-    """Parse @deprecated decorator and extract its parameters"""
-    if DEPRECATED not in decorator_string:
-        return None
+def generate_valid_commands(
+        destination_folder: str,
+        path_to_setup_file_in_module: str,
+        path_to_scan: str | None = None,
+        mount_point: str = '',
+        is_private_mode_enabled: bool = False,
+) -> dict:
+    # generate or compute the path to process
+    _LOG.info(f'[commands] Path to scan: {path_to_scan}')
 
-    # Extract content between parentheses
-    match = re.search(r'@deprecated\((.*)\)', decorator_string, re.DOTALL)
-    if not match:
-        return None
-
-    params_str = match.group(1)
-    deprecation_info = {}
-
-    # Parse parameters - handle both quoted strings and booleans
-    param_patterns = {
-        'removal_date': r"removal_date\s*=\s*['\"]([^'\"]+)['\"]",
-        'alternative': r"alternative\s*=\s*['\"]([^'\"]+)['\"]",
-        'deprecated_date': r"deprecated_date\s*=\s*['\"]([^'\"]+)['\"]",
-        'version': r"version\s*=\s*['\"]([^'\"]+)['\"]",
-        'reason': r"reason\s*=\s*['\"]([^'\"]+)['\"]",
-        'enforce_removal': r"enforce_removal\s*=\s*(True|False)",
+    valid_methods: dict[str, Any] = {
+        'type': 'module',
+        'body': {},
+        'description': '',
     }
+    listdir: list[str] = \
+        get_file_names_which_contains_admin_commands(path_to_scan=path_to_scan)
 
-    for param_name, pattern in param_patterns.items():
-        match = re.search(pattern, params_str)
-        if match:
-            value = match.group(1)
-            if param_name == 'enforce_removal':
-                deprecation_info[param_name] = value == 'True'
+    if destination_folder not in sys.path:
+        sys.path.append(destination_folder)
+
+    with open(path_to_setup_file_in_module) as file:
+        file_content = file.readlines()
+
+    root_group_name: str = _resolve_root_group_name(file_content=file_content)
+
+    for group_file in sorted(listdir):
+        group_full_name_list, group_name = \
+            resolve_group_name(group_file=group_file)
+        is_private_group = (
+                isinstance(group_full_name_list, list) and
+                group_full_name_list[0] == 'private' or
+                group_full_name_list == 'private'
+        )
+
+        is_subgroup = (
+                isinstance(group_full_name_list, list) and
+                not is_private_group
+        )
+        is_root_group = root_group_name == group_name
+        if is_private_group ^ is_private_mode_enabled:
+            continue
+
+        # from index.py -> get_module_group_and_associate_object
+        module_spec = importlib.util.spec_from_file_location(
+            group_name,
+            os.path.join(path_to_scan, group_file)
+        )
+        imported_module = importlib.util.module_from_spec(module_spec)
+        with patch(
+                target='botocore.client.BaseClient._make_api_call',
+                return_value=DICT_WITH_CREDS_FOR_MOCK,
+        ):
+            module_spec.loader.exec_module(imported_module)
+
+        # Extract group metadata (hidden status, description, and deprecation)
+        group_metadata = _get_group_metadata(imported_module, group_name)
+
+        # Fallback: try to parse deprecation from source if not in metadata
+        if 'deprecation' not in group_metadata:
+            source_deprecation = _parse_group_deprecation_from_source(
+                imported_module, group_name
+            )
+            if source_deprecation:
+                group_metadata['deprecation'] = source_deprecation
+
+        commands = CommandsDefinitionsExtractor(
+            group_name=group_name,
+            module=imported_module,
+            mount_point=mount_point,
+        ).extract(subgroup=is_subgroup)
+
+        # Build group meta with hidden status, description, and deprecation
+        group_meta: dict = {
+            "type": "group",
+            "body": commands,
+            "is_group_hidden": group_metadata.get('is_group_hidden', False),
+            "description": group_metadata.get('description', ''),
+        }
+
+        # Add deprecation info if present
+        if group_metadata.get('deprecation'):
+            group_meta['deprecation'] = group_metadata['deprecation']
+
+        if is_subgroup:
+            if not valid_methods['body'].get(group_full_name_list[0]):
+                valid_methods['body'][group_full_name_list[0]] = {
+                    'type': 'group',
+                    'body': {},
+                    'is_group_hidden': False,
+                }
+            if isinstance(group_full_name_list, list) \
+                    and len(group_full_name_list) > 2:
+                if not valid_methods['body'][group_full_name_list[0]]['body'] \
+                        .get(group_full_name_list[1]):
+                    valid_methods['body'][group_full_name_list[0]]['body'][
+                        group_full_name_list[1]]: dict = {
+                        'type': 'group',
+                        'body': {},
+                        'is_group_hidden': False,
+                    }
+                # todo refactor this
+                valid_methods['body'][group_full_name_list[0]]['body'] \
+                    [group_full_name_list[1]]['body'] \
+                    .update({group_name: group_meta})
             else:
-                deprecation_info[param_name] = value
-
-    result = deprecation_info if deprecation_info else None
-    return result
-
-
-def _calculate_days_until(
-        removal_date_str: str,
-) -> int:
-    """Calculate days until removal date"""
-    try:
-        removal_date = date.fromisoformat(removal_date_str)
-        return (removal_date - date.today()).days
-    except (ValueError, AttributeError):
-        return 0
+                valid_methods['body'][group_full_name_list[0]]['body'] \
+                    .update({group_name: group_meta})
+        elif is_root_group:
+            valid_methods['description'] = group_metadata.get('description', '')
+            root_commands_meta = group_meta.pop('body')
+            for root_command_meta in root_commands_meta.values():
+                root_command_meta['type'] = 'root command'
+            valid_methods['body'].update(root_commands_meta)
+        else:
+            valid_methods['body'][group_name] = group_meta
+    if destination_folder in sys.path:
+        sys.path.remove(destination_folder)
+    return valid_methods
 
 
 class CommandsDefinitionsExtractor:
@@ -316,7 +474,7 @@ class CommandsDefinitionsExtractor:
     @staticmethod
     def _get_alias(opts: list) -> str | None:
         """Get alias from click's opts. They look like ['--param', '-p'].
-        Trere are no guarantee that alias will be second."""
+        There are no guarantee that alias will be second."""
         if len(opts) == 1:
             return None
         for opt in opts:
@@ -368,7 +526,7 @@ class CommandsDefinitionsExtractor:
         line = line.replace('\'', '')
         start_index = line.index('(')
         end_index = line.index(')')
-        line = line[start_index + 1: end_index]  #
+        line = line[start_index + 1: end_index]
         parameters = line.split(',')
         for parameter_def in parameters:
             split = parameter_def.split('=')
@@ -400,10 +558,10 @@ class CommandsDefinitionsExtractor:
             if line.startswith('#'):
                 continue
             if '@{}.command'.format(self._group_name) in line:
-                # Look backwards for @deprecated decorator
+                # Look backwards for @deprecated_command decorator
                 deprecation_info: dict | None = None
                 look_back_index = index - 1
-                # Check up to 20 lines above for @deprecated decorator
+                # Check up to 20 lines above for @deprecated_command decorator
                 while look_back_index >= 0 and (index - look_back_index) < 20:
                     prev_line = lines[look_back_index].strip()
 
@@ -418,47 +576,90 @@ class CommandsDefinitionsExtractor:
                     if prev_line.startswith('def '):
                         break
 
-                    # Found @deprecated decorator
-                    if DEPRECATED in prev_line:
+                    # Found @deprecated_command decorator
+                    if DEPRECATED_COMMAND in prev_line:
                         # Collect the complete multi-line decorator
                         deprecation_lines = []
                         collect_index = look_back_index
 
-                        # Collect forward from @deprecated until we find the closing )
                         while collect_index < index:
                             current = lines[collect_index].strip()
-                            if current:  # Skip empty lines
+                            if current:
                                 deprecation_lines.append(current)
-                                # If we found closing parenthesis, stop
-                                if ')' in current and DEPRECATED in ''.join(deprecation_lines):
-                                    # Make sure we have balanced parentheses
+                                if ')' in current and DEPRECATED_COMMAND \
+                                        in ''.join(deprecation_lines):
                                     full_text = ''.join(deprecation_lines)
-                                    if full_text.count('(') == full_text.count(')'):
+                                    if full_text.count('(') == \
+                                            full_text.count(')'):
                                         break
                             collect_index += 1
 
                         deprecation_line = ''.join(deprecation_lines)
-                        deprecation_info = \
-                            _parse_deprecated_decorator(deprecation_line)
+                        deprecation_info = _parse_deprecated_decorator(
+                            deprecation_line,
+                            decorator_name=DEPRECATED_COMMAND,
+                        )
                         break
 
                     look_back_index -= 1
 
-                # find from @{group}.command to enclosing  """ of docstring
+                # find from @{group}.command to enclosing """ of docstring
                 command_lines = [line]
                 comment_close_sum_counter = 0
                 counter = 1
                 # definition of command function
                 command_def_line_passed = False
+                paren_balance = 0  # ()
+                total_lines = len(lines)
+
                 while comment_close_sum_counter != 2:
-                    current_line = lines[index + counter]
+                    current_line_index = index + counter
+                    if current_line_index >= total_lines:
+                        _LOG.warning(
+                            f'Reached end of file while parsing command '
+                            f'starting at line {index}'
+                        )
+                        break
+                    current_line = lines[current_line_index]
                     if 'def ' in current_line:
                         command_def_line_passed = True
-                    if command_def_line_passed and '):' in current_line and \
-                            '\"\"\"' not in lines[index + counter + 1]:
-                        comment_close_sum_counter = 2  # to break the loop
+
+                    if command_def_line_passed:
+                        paren_balance += current_line.count('(')
+                        paren_balance -= current_line.count(')')
+
+                    # Check if function definition is closed
+                    # All parentheses must be balanced and line ends with ':'
+                    is_command_def_line_closed = (
+                            command_def_line_passed and
+                            paren_balance <= 0 and
+                            current_line.rstrip().endswith(':')
+                    )
+
+                    # If command definition is closed and comment close sum
+                    # counter is 0, then we need to check if the next line has
+                    # docstring quotes, if not, its means that the command does
+                    # not have a docstring.
+                    if is_command_def_line_closed and \
+                            comment_close_sum_counter == 0:
+                        next_line_index = current_line_index + 1
+                        exists_docstring_quotes = (
+                                next_line_index < total_lines
+                                and '\"\"\"' in lines[next_line_index]
+                        )
+
+                        if not exists_docstring_quotes:
+                            _LOG.warning(
+                                'No docstring quotes found for some '
+                                f'command from group: {self._group_name}'
+                            )
+                            comment_close_sum_counter = 2  # to break the loop
+
+                    # Count docstring quotes (""") - handles both single-line
+                    # and multi-line docstrings
                     if '\"\"\"' in current_line:
-                        comment_close_sum_counter += 1
+                        comment_close_sum_counter += current_line.count(
+                            '\"\"\"')
                         counter += 1
                         continue
 
@@ -485,7 +686,17 @@ class CommandsDefinitionsExtractor:
 
                 for line in prepared_lines:
                     if f'@{self._group_name}.command' in line:
-                        name = line.split('\'')[1]
+                        # Normalize double quotes to single, then split
+                        normalized = line.replace('"', "'")
+                        parts = normalized.split("'")
+                        if len(parts) >= 2 and parts[1]:
+                            name = parts[1]
+                        else:
+                            _LOG.warning(
+                                f'Could not extract command name from '
+                                f'decorator: {line}'
+                            )
+                            continue
                         # Check for hidden=True in the command decorator
                         if 'hidden=True' in line:
                             is_command_hidden = True  # Hidden but executable
@@ -504,8 +715,10 @@ class CommandsDefinitionsExtractor:
                             files_parameters.update(
                                 {
                                     param_name: {
-                                        'convert_content_to_file': convert_content_to_file,
-                                        'temp_file_extension': temp_file_extension
+                                        'convert_content_to_file':
+                                            convert_content_to_file,
+                                        'temp_file_extension':
+                                            temp_file_extension
                                     }
                                 }
                             )
@@ -562,7 +775,7 @@ class CommandsDefinitionsExtractor:
                 required = (param.callback and param.callback.__name__
                             in REQUIRED_PARAM_CALLBACKS) or param.required
                 param_help = param.help.replace('* ', '') if param.help else ''
-                param_meta: dict[str, Any]  = {
+                param_meta: dict[str, Any] = {
                     'name': param.human_readable_name,
                     'alias': self._get_alias(param.opts),
                     'required': required,
@@ -573,6 +786,9 @@ class CommandsDefinitionsExtractor:
 
                 if getattr(param, 'is_flag', False):
                     param_meta['is_flag'] = True
+                elif _is_json_serializable_default(param.default) \
+                        and param.default is not None:
+                    param_meta['default_value'] = param.default
 
                 interactive_settings = getattr(
                     param, "interactive_settings", None,
@@ -580,9 +796,15 @@ class CommandsDefinitionsExtractor:
                 if interactive_settings:
                     param_meta['interactive_settings'] = interactive_settings
 
-                if isinstance(param.type, (Choice)):
+                if isinstance(param.type, Choice):
                     # TODO refactor asap
-                    choices = param.type.choices
+                    choices = []
+                    for c in param.type.choices:
+                        if isinstance(c, Enum):
+                            choices.append(str(c.value))
+                        else:
+                            choices.append(str(c))
+                    param_meta['allowed_choices'] = choices
                     param_meta['description'] += f' {"|".join(choices)}'
                 if isinstance(param.type, (IntRange, FloatRange)):
                     # TODO update click and use get_metavar

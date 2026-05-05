@@ -305,7 +305,7 @@ requires-dist = [
     { name = "ddtrace", specifier = "==3.9.4" },
     { name = "gunicorn", specifier = "==23.0.0" },
     { name = "limits", specifier = "==5.6.0" },
-    { name = "modular-cli-sdk", specifier = "==3.1.0" },
+    { name = "modular-cli-sdk", specifier = "==3.1.2" },
     { name = "modular-sdk", specifier = "==7.1.4" },
     { name = "packaging", specifier = ">=25" },
     { name = "prettytable", specifier = "==3.9.0" },
@@ -327,16 +327,16 @@ dev = [
 
 [[package]]
 name = "modular-cli-sdk"
-version = "3.1.0"
+version = "3.1.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "boto3" },
     { name = "botocore" },
     { name = "click" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/b0/9f/64ee916b8844c7756a5ae8448b82fb038f98763e083b14a219cbcf97f05e/modular_cli_sdk-3.1.0.tar.gz", hash = "sha256:e88ed31394caa3aaa05466899c891e96c6c440d249348b901b0da28af58219b4", size = 19525, upload-time = "2025-11-07T08:18:14.79Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e6/1a/09c9b0c2b8acdc7c23f0d02dc1ac21b47d52016a1c58a635d9c3164e9133/modular_cli_sdk-3.1.2.tar.gz", hash = "sha256:d9ab9a32e39dd3051aefc4dae8a259481b2a177c3068ae907ccce8956f0a4931", size = 21554, upload-time = "2026-01-22T08:47:49.201Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e3/5f/48f4a65efb4a1c249924b6fbe1429b96dade2e01e2772d80b28213cc1193/modular_cli_sdk-3.1.0-py3-none-any.whl", hash = "sha256:16a450f4076b1d2c366b668ccb26ec643791c8fc85f008c1f988322c6dd1c325", size = 19851, upload-time = "2025-11-07T08:18:13.218Z" },
+    { url = "https://files.pythonhosted.org/packages/ab/b2/29bb9155099e3a2ffd36863c06673df84a22c07a059117d81d160c16cbe7/modular_cli_sdk-3.1.2-py3-none-any.whl", hash = "sha256:d5333903b88d292ab75fb75d59a51f465c5a7764967e9a0270de3de8489a854d", size = 22139, upload-time = "2026-01-22T08:47:47.818Z" },
 ]
 
 [[package]]

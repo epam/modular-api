@@ -1,30 +1,100 @@
-# Modular API Documentation
+## Table of Contents
 
-<a name="content"></a>
-
-## Content
-
-1. [General Information](#general_information)
-2. [Installation and Configuration](#installation_and_configuration)
-3. [Policies Management](#policies_management)
-4. [Group Management](#group_management)
-5. [User Management](#user_management)
-6. [Modules Installation](#modules_installation)
-7. [Audit Service](#audit_service)
-8. [First Run](#first_run)
-9. [Modular API Schema](#modular_api_schema)
-10. [Annexes](#annexes)
+- [Introduction](#introduction)
+1. [General Information](#1-general-information)
+   - [Key Features](#key-features)
+   - [Architecture Components](#architecture-components)
+   - [How It Works](#how-it-works)
+   - [Available Modules](#available-modules)
+2. [Installation and Configuration](#2-installation-and-configuration)
+   - [Prerequisites](#prerequisites)
+   - [Installation Steps](#installation-steps)
+   - [Configuration](#configuration)
+   - [Configuration Parameters](#configuration-parameters)
+   - [SaaS Mode (AWS DynamoDB)](#saas-mode-aws-dynamodb)
+   - [OnPrem Mode (MongoDB)](#onprem-mode-mongodb)
+3. [Policies Management](#3-policies-management)
+   - [Policy Commands](#policy-commands)
+   - [Policy Structure](#policy-structure)
+   - [Policy Rules](#policy-rules)
+   - [Resource Syntax](#resource-syntax)
+   - [Real-World Policy Examples](#real-world-policy-examples)
+   - [Creating Policies](#creating-policies)
+   - [Viewing Policies](#viewing-policies)
+   - [Updating Policies](#updating-policies)
+   - [Deleting Policies](#deleting-policies)
+4. [Group Management](#4-group-management)
+   - [Group Commands](#group-commands)
+   - [Real-World Group Examples](#real-world-group-examples)
+   - [Managing Group Policies](#managing-group-policies)
+   - [Viewing Groups](#viewing-groups)
+   - [Deleting Groups](#deleting-groups)
+   - [Complete Group Setup Example](#complete-group-setup-example)
+5. [User Management](#5-user-management)
+   - [User Commands](#user-commands)
+   - [Creating Users](#creating-users)
+   - [Real-World User Setup](#real-world-user-setup)
+   - [Managing User Groups](#managing-user-groups)
+   - [Password Management](#password-management)
+   - [Blocking and Unblocking Users](#blocking-and-unblocking-users)
+   - [User Meta Attributes](#user-meta-attributes)
+   - [Viewing Users](#viewing-users)
+   - [Deleting Users](#deleting-users)
+6. [Modules Installation](#6-modules-installation)
+   - [Module Requirements](#module-requirements)
+   - [Module Commands](#module-commands)
+   - [Installing M3Admin Modules](#installing-m3admin-modules)
+   - [Uninstalling Modules](#uninstalling-modules)
+   - [Dependency Management](#dependency-management)
+7. [Audit Service](#7-audit-service)
+   - [Audit Commands](#audit-commands)
+   - [Audit Output Example](#audit-output-example)
+   - [Real-World Audit Examples](#real-world-audit-examples)
+8. [First Run](#8-first-run)
+   - [Pre-Flight Checklist](#pre-flight-checklist)
+   - [Starting the Server](#starting-the-server)
+   - [Verify Server Health](#verify-server-health)
+   - [Access Swagger Documentation](#access-swagger-documentation)
+   - [Using API Clients](#using-api-clients)
+9. [Modular API Schema](#9-modular-api-schema)
+   - [Architecture Diagram](#architecture-diagram)
+   - [Request Flow](#request-flow)
+   - [Database Schema](#database-schema)
+10. [Annexes](#10-annexes)
     - [Annex 1: Common Use Cases](#annex-1-common-use-cases)
     - [Annex 2: Developers Guide](#annex-2-developers-guide)
-11. [Project Information](#project_information)
+11. [Project Information](#11-project-information)
 
-<a name="general_information"></a> 
+[//]: # ({{ pagebreak }})
+
+## Introduction
+
+### About This Guide
+
+This guide describes the installation, configuration, and administration of Modular API – a unified facade server that provides centralized management for multiple modules through a single entry point. It enables unified authentication, authorization, and audit capabilities across all integrated services.
+
+### Target Audience
+
+This guide is designed for:
+
+* **System Administrators** responsible for deploying and managing Modular API infrastructure
+* **Security Engineers** configuring policies, groups, and user access controls
+* **DevOps Engineers** integrating Modular API into CI/CD pipelines
+* **Developers** extending Modular API with custom modules
+
+### Related Documents
+
+* For M3 Admin CLI usage and commands, refer to M3 Admin User Guide
+* For Modular CLI configuration and usage, see [Modular-CLI README](https://git.epam.com/epmc-eoos/m3-modular-cli/-/blob/develop/README.md)
+* For Modular SDK integration, see [Modular-SDK Documentation](https://github.com/epam/modular-sdk)
+
+<a name="1-general-information"></a>
+
+[//]: # ({{ pagebreak }})
 
 ## 1. General Information
 
-Modular API is a unified facade server that allows combining different services controls under one 
-custom API/CLI service. It provides centralized management for multiple modules through a single 
-entry point with unified authentication, authorization, and audit capabilities.
+Modular API is a unified facade server that allows combining different services controls under one custom API/CLI service. It provides centralized management for multiple modules through a single entry point with unified authentication, authorization, and audit capabilities.
 
 ### Key Features
 
@@ -64,19 +134,23 @@ The Modular API acts as a facade layer that:
 
 Modular API supports multiple independent modules. In a typical M3Admin deployment, these modules are used:
 
-* **m3admin** (root module): Core administrative functions for AWS, Azure, Google Cloud, OpenStack, etc.
-* **billing**: Cost management, reports, budgets, pricing policies
-* **chef**: Configuration management with Chef integration
-* **lowlevel**: System-level operations and utilities
-* **maintenance**: System maintenance tasks
-* **notifications**: Email and notification management
-* **permissions**: User and access control management
+| Module            | Description                                                        |
+|-------------------|--------------------------------------------------------------------|
+| **m3admin**       | Core administrative functions for AWS, Azure, GCP, OpenStack, etc. |
+| **billing**       | Cost management, reports, budgets, pricing policies                |
+| **chef**          | Configuration management with Chef integration                     |
+| **lowlevel**      | System-level operations and utilities                              |
+| **maintenance**   | System maintenance tasks                                           |
+| **notifications** | Email and notification management                                  |
+| **permissions**   | User and access control management                                 |
 
 Each module is installed separately and has its own policies and permissions.
 
-[Content ↑](#content)
+[Content ↑](#table-of-contents)
 
-<a name="installation_and_configuration"></a> 
+<a name="2-installation-and-configuration"></a>
+
+[//]: # ({{ pagebreak }})
 
 ## 2. Installation and Configuration
 
@@ -172,36 +246,42 @@ MODULAR_CLI_VAULT_TOKEN=token
 MODULAR_CLI_VAULT_ADDR=http://127.0.0.1:8200
 ```
 
-#### Configuration Parameters
+### Configuration Parameters
 
-**Basic Configuration:**
+#### Basic Configuration
 
-* **MODULAR_API_SECRET_KEY**: Passphrase for JWT token encryption and hash calculation. It is also used in policy, group, and user items for hash sum calculation
-* **MODULAR_API_MODE**: 
-  - `saas` - Uses AWS DynamoDB (requires AWS credentials)
-  - `onprem` - Uses MongoDB (requires MongoDB URI)
-* **MODULAR_API_CALLS_PER_SECOND_LIMIT**: Rate limiting (requests per second)
-* **MODULAR_API_MIN_CLI_VERSION**: Minimum supported CLI version
-* **MODULAR_API_ENABLE_PRIVATE_MODE**: Enable private mode (uses MongoDB)
+| Parameter                            | Description                                              | Example                   |
+|--------------------------------------|----------------------------------------------------------|---------------------------|
+| `MODULAR_API_SECRET_KEY`             | Passphrase for JWT token encryption and hash calculation | `your-secure-passphrase`  |
+| `MODULAR_API_MODE`                   | Deployment mode (`saas` or `onprem`)                     | `saas`                    |
+| `MODULAR_API_CALLS_PER_SECOND_LIMIT` | Rate limiting (requests per second)                      | `30`                      |
+| `MODULAR_API_MIN_CLI_VERSION`        | Minimum supported CLI version                            | `2.0`                     |
+| `MODULAR_API_ENABLE_PRIVATE_MODE`    | Enable private mode (uses MongoDB)                       | `false`                   |
 
-**Logging Configuration:**
+#### Logging Configuration
 
-* **MODULAR_API_SERVER_LOG_LEVEL**: Server log verbosity (`INFO` or `DEBUG`)
-* **MODULAR_API_CLI_LOG_LEVEL**: CLI log verbosity (`INFO` or `DEBUG`)
-* **MODULAR_API_LOG_PATH**: Log file storage path. By default, it's `%USERPROFILE%\.modular_api\log` (the `C:\Users\User\.modular_api\log` folder in your User directory)
+| Parameter                      | Description                      | Default                          |
+|--------------------------------|----------------------------------|----------------------------------|
+| `MODULAR_API_SERVER_LOG_LEVEL` | Server log verbosity             | `INFO`                           |
+| `MODULAR_API_CLI_LOG_LEVEL`    | CLI log verbosity                | `INFO`                           |
+| `MODULAR_API_LOG_PATH`         | Log file storage path            | `%USERPROFILE%\.modular_api\log` |
 
-**Database Configuration (OnPrem Mode):**
+#### Database Configuration (OnPrem Mode)
 
-* **MODULAR_API_MONGO_URI**: MongoDB connection string
-* **MODULAR_API_MONGO_DATABASE**: Database name for collections
-* **MODULAR_API_RATE_LIMITS_MONGO_DATABASE**: Database name for rate limiting
+| Parameter                                | Description                     | Example                     |
+|------------------------------------------|---------------------------------|-----------------------------|
+| `MODULAR_API_MONGO_URI`                  | MongoDB connection string       | `mongodb://localhost:27017` |
+| `MODULAR_API_MONGO_DATABASE`             | Database name for collections   | `modular-api`               |
+| `MODULAR_API_RATE_LIMITS_MONGO_DATABASE` | Database name for rate limiting | `modular-api-rate-limits`   |
 
-**Vault Configuration (OnPrem/Private Mode):**
+#### Vault Configuration (OnPrem/Private Mode)
 
-* **MODULAR_CLI_VAULT_TOKEN**: Vault authentication token
-* **MODULAR_CLI_VAULT_ADDR**: Vault server address
+| Parameter                 | Description                | Example                 |
+|---------------------------|----------------------------|-------------------------|
+| `MODULAR_CLI_VAULT_TOKEN` | Vault authentication token | `token`                 |
+| `MODULAR_CLI_VAULT_ADDR`  | Vault server address       | `http://127.0.0.1:8200` |
 
-#### SaaS Mode (AWS DynamoDB)
+### SaaS Mode (AWS DynamoDB)
 
 Set environment variables:
 
@@ -212,15 +292,17 @@ export AWS_SESSION_TOKEN=<your_session_token>
 export AWS_REGION=<your_region>
 ```
 
-#### OnPrem Mode (MongoDB)
+### OnPrem Mode (MongoDB)
 
 Ensure MongoDB is running and accessible, then configure the connection URI in `.env` file.
 
 **NOTE:** You can export environment variables instead of using the `.env` file.
 
-[Content ↑](#content)
+[Content ↑](#table-of-contents)
 
-<a name="policies_management"></a> 
+<a name="3-policies-management"></a>
+
+[//]: # ({{ pagebreak }})
 
 ## 3. Policies Management
 
@@ -271,38 +353,30 @@ modular policy delete --policy <POLICY_NAME>
 
 ### Policy Rules
 
-* **Effect**: Required. Must be `Allow` or `Deny`
-* **Deny takes precedence**: Deny rules override Allow rules
-* **Module**: Module name (e.g., `m3admin`, `billing`, `chef`)
-* **Resources**: List of commands, groups, or wildcards
+| Property       | Description                                             | Required  |
+|----------------|---------------------------------------------------------|-----------|
+| **Effect**     | Must be `Allow` or `Deny`. Deny takes precedence        | ✓         |
+| **Module**     | Module name (e.g., `m3admin`, `billing`, `chef`) or `*` | ✓         |
+| **Resources**  | List of commands, groups, or wildcards                  | ✓         |
 
-### Policy Properties
+**Key Rules:**
 
-#### Property "Effect"
-
-* Required. Possible values: `Allow` or `Deny`
 * **Deny** effect has more priority than **Allow**
-* If some command/groups/subgroups/modules are not in user policy(ies) then they will not be available to use
-
-#### Property "Module"
-
-* Required
+* If commands/groups/subgroups/modules are not in user policy(ies), they will not be available
 * For m3admin root(src) module use `m3admin` name
-* You can use `*` symbol in "Module" property. This will mean that "Effect" is being applied for all current modules installed in Modular-API
-* Module name is equal to property "module_name" in "api_module.json" file in each Modular-API module
-
-#### Property "Resources"
-
-* Required and property cannot be empty
+* Use `*` in "Module" property to apply "Effect" to all installed modules
+* Module name equals the `module_name` property in `api_module.json` file
 
 ### Resource Syntax
 
-* `*` → All commands in the module
-* `command_name` → Specific command
-* `group:*` → All commands in a group
-* `group:command` → Specific command in a group
-* `group/subgroup:*` → All commands in a subgroup
-* `group/subgroup:command` → Specific command in a subgroup
+| Syntax                   | Description                     |
+|--------------------------|---------------------------------|
+| `*`                      | All commands in the module      |
+| `command_name`           | Specific command                |
+| `group:*`                | All commands in a group         |
+| `group:command`          | Specific command in a group     |
+| `group/subgroup:*`       | All commands in a subgroup      |
+| `group/subgroup:command` | Specific command in a subgroup  |
 
 ### Real-World Policy Examples
 
@@ -525,9 +599,11 @@ modular policy delete --policy "m3admin-deprecated"
 
 **WARNING:** Deleting a policy affects all groups using it. Ensure no active groups reference the policy before deletion.
 
-[Content ↑](#content)
+[Content ↑](#table-of-contents)
 
-<a name="group_management"></a> 
+<a name="4-group-management"></a>
+
+[//]: # ({{ pagebreak }})
 
 ## 4. Group Management
 
@@ -720,6 +796,7 @@ modular group add --group "administrators" \
   --policy "notifications-administrator" \
   --policy "permissions-administrator" \
   --policy "chef-administrator"
+
 # L3 Support group - operational access
 modular group add --group "l3support" \
   --policy "lowlevel-l3support" \
@@ -729,11 +806,13 @@ modular group add --group "l3support" \
   --policy "notifications-l3support" \
   --policy "permissions-l3support" \
   --policy "chef-l3support"
+
 # Billing team - financial operations
 modular group add --group "billing" \
   --policy "lowlevel-billing" \
   --policy "billing-billing" \
   --policy "maintenance-billing"
+
 # Read-only group - auditors and viewers
 modular group add --group "readonly" \
   --policy "m3admin-readonly" \
@@ -742,6 +821,7 @@ modular group add --group "readonly" \
   --policy "permissions-readonly" \
   --policy "chef-readonly" \
   --policy "notifications-readonly"
+
 # CICD group - automated deployments
 modular group add --group "cicd" \
   --policy "lowlevel-cicd" \
@@ -751,6 +831,7 @@ modular group add --group "cicd" \
   --policy "notifications-cicd" \
   --policy "permissions-cicd" \
   --policy "chef-cicd"
+
 # M3 Server group - inter-service communication
 modular group add --group "m3server" \
   --policy "lowlevel-m3server" \
@@ -758,12 +839,15 @@ modular group add --group "m3server" \
   --policy "billing-m3server" \
   --policy "notifications-m3server" \
   --policy "permissions-m3server"
+
 echo "All groups created successfully"
 ```
 
-[Content ↑](#content)
+[Content ↑](#table-of-contents)
 
-<a name="user_management"></a> 
+<a name="5-user-management"></a>
+
+[//]: # ({{ pagebreak }})
 
 ## 5. User Management
 
@@ -1007,6 +1091,7 @@ modular user get_meta --username "support_regional"
 ```
 
 Output:
+
 ```json
 {
   "allowed_values": {
@@ -1098,7 +1183,6 @@ $ modular user describe --username admin --json
         "Consistency status": "OK"
     }
 ]
-
 ```
 
 ### Deleting Users
@@ -1109,9 +1193,11 @@ modular user delete --username "contractor_expired"
 
 **WARNING:** User deletion is permanent and cannot be undone.
 
-[Content ↑](#content)
+[Content ↑](#table-of-contents)
 
-<a name="modules_installation"></a> 
+<a name="6-modules-installation"></a>
+
+[//]: # ({{ pagebreak }})
 
 ## 6. Modules Installation
 
@@ -1122,6 +1208,7 @@ Modules extend Modular API functionality. Each module is an independent package 
 Each module must have:
 
 1. **api_module.json** file:
+
 ```json
 {
   "module_name": "m3admin",
@@ -1135,7 +1222,9 @@ Each module must have:
   ]
 }
 ```
+
 2. **setup.py** file in the same directory
+
 3. **Proper naming convention**:
    - `groupname.py` for command groups
    - `groupname_subgroupname.py` for subgroups
@@ -1225,6 +1314,7 @@ Installed modules
 ```bash
 # Uninstall specific module
 modular uninstall --module_name "chef"
+
 # Verify removal
 modular describe
 ```
@@ -1235,9 +1325,11 @@ modular describe
 
 Modular API automatically checks dependencies during installation. If a required dependency is missing or has insufficient version, installation fails with a clear error message.
 
-[Content ↑](#content)
+[Content ↑](#table-of-contents)
 
-<a name="audit_service"></a> 
+<a name="7-audit-service"></a>
+
+[//]: # ({{ pagebreak }})
 
 ## 7. Audit Service
 
@@ -1303,7 +1395,6 @@ $ modular audit --json
         "Consistency status": "OK"
     }
 ]
-
 ```
 
 ### Real-World Audit Examples
@@ -1363,9 +1454,11 @@ modular audit --group "billing" --limit 200
 modular audit --group "billing" --command "close_month" --limit 50
 ```
 
-[Content ↑](#content)
+[Content ↑](#table-of-contents)
 
-<a name="first_run"></a> 
+<a name="8-first-run"></a>
+
+[//]: # ({{ pagebreak }})
 
 ## 8. First Run
 
@@ -1399,11 +1492,13 @@ modular run \
 
 **Worker Count Guidelines:**
 
-1. Default formula: `(2 × CPU_cores) + 1` (e.g., 8-core server = 17 workers)
-2. Minimum: 2 workers for high availability
-3. Production example above uses 2 workers for resource-constrained environments
-4. Adjust `--workers` based on expected load and available memory
-5. More workers = higher concurrency but more memory usage
+| Guideline                   | Description                                              |
+|-----------------------------|----------------------------------------------------------|
+| Default formula             | `(2 × CPU_cores) + 1` (e.g., 8-core server = 17 workers) |
+| Minimum                     | 2 workers for high availability                          |
+| Resource-constrained        | 2 workers as in production example above                 |
+| Adjustment factor           | Based on expected load and available memory              |
+| Trade-off                   | More workers = higher concurrency but more memory usage  |
 
 #### Using Bottle (Development)
 
@@ -1538,9 +1633,11 @@ Use the API meta to find the desired command and create a new request for comman
 
 Alternatively, Swagger can be used instead of the API meta.
 
-[Content ↑](#content)
+[Content ↑](#table-of-contents)
 
-<a name="modular_api_schema"></a> 
+<a name="9-modular-api-schema"></a>
+
+[//]: # ({{ pagebreak }})
 
 ## 9. Modular API Schema
 
@@ -1604,16 +1701,17 @@ Alternatively, Swagger can be used instead of the API meta.
 
 **Field Descriptions:**
 
-* **username**: Unique user identifier
-* **password**: Hashed password string
-* **groups**: Array of group names the user belongs to
-* **state**: User state (e.g., `activated`, `blocked`)
-* **creation_date**: ISO 8601 timestamp of user creation
-* **last_modification_date**: ISO 8601 timestamp of last modification
-* **meta**: User metadata with two sub-objects:
-  - **allowed_values**: Parameter restrictions (e.g., allowed regions, tenants)
-  - **aux_data**: Additional custom data (e.g., service mappings, department info)
-* **hash**: Calculated hash for integrity verification
+| Field                    | Description                                             |
+|--------------------------|---------------------------------------------------------|
+| `username`               | Unique user identifier                                  |
+| `password`               | Hashed password string                                  |
+| `groups`                 | Array of group names the user belongs to                |
+| `state`                  | User state (e.g., `activated`, `blocked`)               |
+| `creation_date`          | ISO 8601 timestamp of user creation                     |
+| `last_modification_date` | ISO 8601 timestamp of last modification                 |
+| `meta.allowed_values`    | Parameter restrictions (e.g., allowed regions, tenants) |
+| `meta.aux_data`          | Additional custom data (e.g., service mappings)         |
+| `hash`                   | Calculated hash for integrity verification              |
 
 #### Groups Collection
 
@@ -1629,11 +1727,13 @@ Alternatively, Swagger can be used instead of the API meta.
 
 **Field Descriptions:**
 
-* **group_name**: Unique group identifier
-* **policies**: Array of policy names attached to this group
-* **state**: Group state (e.g., `activated`)
-* **creation_date**: ISO 8601 timestamp of group creation
-* **hash**: Calculated hash for integrity verification
+| Field           | Description                                  |
+|-----------------|----------------------------------------------|
+| `group_name`    | Unique group identifier                      |
+| `policies`      | Array of policy names attached to this group |
+| `state`         | Group state (e.g., `activated`)              |
+| `creation_date` | ISO 8601 timestamp of group creation         |
+| `hash`          | Calculated hash for integrity verification   |
 
 #### Policies Collection
 
@@ -1650,12 +1750,14 @@ Alternatively, Swagger can be used instead of the API meta.
 
 **Field Descriptions:**
 
-* **policy_name**: Unique policy identifier
-* **policy_content**: JSON string containing policy rules (array of permission statements)
-* **state**: Policy state (e.g., `activated`)
-* **creation_date**: ISO 8601 timestamp of policy creation
-* **last_modification_date**: ISO 8601 timestamp of last policy update
-* **hash**: Calculated hash for integrity verification
+| Field                    | Description                                |
+|--------------------------|--------------------------------------------|
+| `policy_name`            | Unique policy identifier                   |
+| `policy_content`         | JSON string containing policy rules        |
+| `state`                  | Policy state (e.g., `activated`)           |
+| `creation_date`          | ISO 8601 timestamp of policy creation      |
+| `last_modification_date` | ISO 8601 timestamp of last policy update   |
+| `hash`                   | Calculated hash for integrity verification |
 
 **Policy Content Structure** (when parsed from JSON string):
 
@@ -1689,13 +1791,15 @@ Alternatively, Swagger can be used instead of the API meta.
 
 **Field Descriptions:**
 
-* **warnings**: Array of warning messages (if any)
-* **group**: Command group (module) that was executed
-* **timestamp**: ISO 8601 timestamp of command execution
-* **command**: Command name that was executed
-* **parameters**: JSON string containing command parameters (passwords are masked)
-* **result**: Execution result message
-* **hash**: Calculated hash for integrity verification
+| Field        | Description                                                  |
+|--------------|--------------------------------------------------------------|
+| `warnings`   | Array of warning messages (if any)                           |
+| `group`      | Command group (module) that was executed                     |
+| `timestamp`  | ISO 8601 timestamp of command execution                      |
+| `command`    | Command name that was executed                               |
+| `parameters` | JSON string containing command parameters (passwords masked) |
+| `result`     | Execution result message                                     |
+| `hash`       | Calculated hash for integrity verification                   |
 
 #### Tokens Collection
 
@@ -1708,20 +1812,31 @@ Alternatively, Swagger can be used instead of the API meta.
 
 **Field Descriptions:**
 
-* **u**: Username
-* **v**: JWT token hash value
+| Field   | Description          |
+|---------|----------------------|
+| `u`     | Username             |
+| `v`     | JWT token hash value |
 
-[Content ↑](#content)
+[Content ↑](#table-of-contents)
 
-<a name="annexes"></a> 
+<a name="10-annexes"></a>
+
+[//]: # ({{ pagebreak }})
 
 ## 10. Annexes
 
-<a name="annex-1-common-use-cases"></a> 
+<a name="annex-1-common-use-cases"></a>
 
 ### Annex 1: Common Use Cases
 
 This annex provides real-world examples and workflows for common Modular API tasks.
+
+- [Use Case 1: Initial System Setup](#use-case-1-initial-system-setup)
+- [Use Case 2: Testing Permissions with Policy Simulator](#use-case-2-testing-permissions-with-policy-simulator)
+- [Use Case 3: Managing Regional Access](#use-case-3-managing-regional-access)
+- [Use Case 4: Audit and Compliance](#use-case-4-audit-and-compliance)
+- [Use Case 5: Backup and Restore](#use-case-5-backup-and-restore)
+- [Use Case 6: Usage Statistics](#use-case-6-usage-statistics)
 
 #### Use Case 1: Initial System Setup
 
@@ -1951,6 +2066,8 @@ modular user add --username "cicd-bot" --group "cicd"
 echo "Setup complete! Save the generated passwords securely."
 ```
 
+[↑ Back to Use Cases](#annex-1-common-use-cases)
+
 #### Use Case 2: Testing Permissions with Policy Simulator
 
 **Scenario:** Verify user permissions before granting access.
@@ -1977,6 +2094,8 @@ Checked for user: admin
 Command: admin aws add_image
 Status: ALLOW
 ```
+
+[↑ Back to Use Cases](#annex-1-common-use-cases)
 
 #### Use Case 3: Managing Regional Access
 
@@ -2005,6 +2124,8 @@ admin tenant describe --region eu-central-1
 admin tenant describe --region us-east-1
 # Error: Value 'us-east-1' not allowed for parameter 'region'
 ```
+
+[↑ Back to Use Cases](#annex-1-common-use-cases)
 
 #### Use Case 4: Audit and Compliance
 
@@ -2051,6 +2172,8 @@ modular policy describe --json > ${OUTPUT_DIR}/policies_snapshot.json
 
 echo "Compliance reports generated in ${OUTPUT_DIR}"
 ```
+
+[↑ Back to Use Cases](#annex-1-common-use-cases)
 
 #### Use Case 5: Backup and Restore
 
@@ -2142,6 +2265,8 @@ echo "Restore completed. Please recreate users manually due to password security
 rm -rf ${RESTORE_DIR}
 ```
 
+[↑ Back to Use Cases](#annex-1-common-use-cases)
+
 #### Use Case 6: Usage Statistics
 
 **Scenario:** Generate usage statistics for capacity planning.
@@ -2172,11 +2297,21 @@ modular get_stats \
   --json
 ```
 
-<a name="annex-2-developers-guide"></a> 
+[↑ Back to Use Cases](#annex-1-common-use-cases)
+
+<a name="annex-2-developers-guide"></a>
 
 ### Annex 2: Developers Guide
 
 This annex provides guidance for developers extending Modular API with custom modules.
+
+- [Module Development Structure](#module-development-structure)
+- [api_module.json Template](#api_modulejson-template)
+- [pyproject.toml Template](#pyprojecttoml-template)
+- [Command File Example](#command-file-example-custompy)
+- [Installing Custom Module](#installing-custom-module)
+- [Creating Module Policies](#creating-module-policies)
+- [Module Development Best Practices](#module-development-best-practices)
 
 #### Module Development Structure
 
@@ -2203,6 +2338,8 @@ my-custom-module/
     └── custom_group_handler.py       # Business logic
 ```
 
+[↑ Back to Developers Guide](#annex-2-developers-guide)
+
 #### api_module.json Template
 
 ```json
@@ -2218,6 +2355,8 @@ my-custom-module/
   ]
 }
 ```
+
+[↑ Back to Developers Guide](#annex-2-developers-guide)
 
 #### pyproject.toml Template
 
@@ -2248,6 +2387,8 @@ exclude = ["**/__pycache__"]
 pythonVersion = "3.10"
 reportIncompatibleMethodOverride = "warning"
 ```
+
+[↑ Back to Developers Guide](#annex-2-developers-guide)
 
 #### Command File Example (custom.py)
 
@@ -2291,16 +2432,22 @@ if __name__ == '__main__':
     cli()
 ```
 
+[↑ Back to Developers Guide](#annex-2-developers-guide)
+
 #### Installing Custom Module
 
 ```bash
 # Install module
 modular install --module_path /path/to/my-custom-module
+
 # Verify installation
 modular describe
+
 # Test commands
 modular describe  # Should show your module
 ```
+
+[↑ Back to Developers Guide](#annex-2-developers-guide)
 
 #### Creating Module Policies
 
@@ -2328,37 +2475,55 @@ modular group add_policy \
   --policy "custom-module-admin"
 ```
 
+[↑ Back to Developers Guide](#annex-2-developers-guide)
+
 #### Module Development Best Practices
 
-1. **Use Click decorators** for command definition
-2. **Include --table and --json flags** for output formatting
-3. **Validate inputs** before processing
-4. **Use meaningful error messages**
-5. **Document all commands** with docstrings
-6. **Follow naming conventions**:
-   - `groupname.py` for command groups
-   - `groupname_subgroupname.py` for subgroups
-7. **Include dependencies** in api_module.json
-8. **Version your module** properly
-9. **Test thoroughly** before deployment
+| Practice                      | Description                                             |
+|-------------------------------|---------------------------------------------------------|
+| Use Click decorators          | For command definition                                  |
+| Include --table and --json    | Flags for output formatting                             |
+| Validate inputs               | Before processing                                       |
+| Use meaningful error messages | Clear, actionable error messages                        |
+| Document all commands         | With docstrings                                         |
+| Follow naming conventions     | `groupname.py` for groups, `groupname_subgroupname.py`  |
+| Include dependencies          | In api_module.json                                      |
+| Version your module           | Properly using semantic versioning                      |
+| Test thoroughly               | Before deployment                                       |
 
-[Content ↑](#content)
+[↑ Back to Developers Guide](#annex-2-developers-guide)
 
-<a name="project_information"></a> 
+[Content ↑](#table-of-contents)
+
+<a name="11-project-information"></a>
+
+[//]: # ({{ pagebreak }})
 
 ## 11. Project Information
 
-### Modular API
+### Project Links
 
-**Source Code**: https://github.com/epam/modular-api/tree/main  
-**Documentation**: https://github.com/epam/modular-api/blob/main/README.md  
-**Changelog**: https://github.com/epam/modular-api/blob/main/CHANGELOG.md  
-**Supported Python Version**: 3.10+
+| Resource          | URL                                                        |
+|-------------------|------------------------------------------------------------|
+| **Source Code**   | https://github.com/epam/modular-api/tree/main              |
+| **Documentation** | https://github.com/epam/modular-api/blob/main/README.md    |
+| **Changelog**     | https://github.com/epam/modular-api/blob/main/CHANGELOG.md |
+
+### Related Projects
+
+| Project             | URL                                     |
+|---------------------|-----------------------------------------|
+| **Modular-CLI**     | https://github.com/epam/modular-cli     |
+| **Modular-SDK**     | https://github.com/epam/modular-sdk     |
+| **Modular-CLI-SDK** | https://github.com/epam/modular-cli-sdk |
 
 ### Support
 
-**Email**: SupportSyndicateTeam@epam.com  
-**Response Time**: 7 calendar days (5 business days, excluding weekends)
+| Contact              | Details                                               |
+|----------------------|-------------------------------------------------------|
+| **Email**            | SupportSyndicateTeam@epam.com                         |
+| **Response Time**    | 7 calendar days (5 business days, excluding weekends) |
+| **Python Version**   | 3.10+                                                 |
 
 ### How to Report an Issue
 
@@ -2370,13 +2535,6 @@ When reporting issues, provide:
 4. **Steps to reproduce**: Detailed reproduction steps
 5. **Error messages**: Complete error output and logs
 6. **Environment details**: OS, deployment mode (saas/onprem), database type
-
-### Communication Tips
-
-1. Be clear and concise
-2. Provide all necessary information
-3. Include logs and screenshots
-4. Be respectful and patient
 
 ### Version Information
 
@@ -2395,7 +2553,7 @@ modular describe --json
 
 Please refer to the project repository for licensing information.
 
-[Content ↑](#content)
+[Content ↑](#table-of-contents)
 
 **Last Updated**: January 2025  
 **Document Version**: 2.0.0  

@@ -1,5 +1,57 @@
 CHANGELOG
 
+# [4.3.16] - 2026-01-15
+* Add comprehensive deprecation support for both commands and groups:
+  - Replace single `@deprecated` decorator with separate `@deprecated_command` and `@deprecated_group` decorators
+  - Add `_parse_deprecated_decorator()` function with enhanced parameter parsing for deprecation metadata
+  - Add `_parse_group_deprecation_from_source()` as fallback method to extract group deprecation from source code
+  - Enhance `_get_group_metadata()` to include deprecation information from group objects
+  - Add `warn_on_subcommands` parameter support for group deprecation
+  - Include deprecation metadata in both command and group output structures
+  - Maintain backward compatibility with existing deprecation parsing while adding new functionality
+* Update library `modular-cli-sdk` from `==3.1.0` to `==3.1.2`
+
+# [4.3.15] - 2026-01-13
+* Add module and group description support in command metadata generation:
+  - Add `_get_group_metadata()` helper to extract both hidden status and description from Click Groups
+  - Remove unused `_get_group_hidden_status()` function (replaced by `_get_group_metadata`)
+  - Add `description` field to module-level metadata structure
+  - Capture module description from root group's help text
+  - Include `description` field in group metadata for all groups
+  - Use `.get()` with defaults for safer dictionary access
+
+# [4.3.14] - 2026-01-12
+* Add hidden group support in command metadata generation:
+  - Add `_get_group_from_module()` helper to find Click Group objects
+  - Add `_get_group_hidden_status()` to extract hidden attribute from groups
+  - Include `is_group_hidden` field in generated command metadata JSON
+  - Initialize parent group metadata with proper structure for subgroups
+
+# [4.3.13] - 2026-01-07
+* Fix `IndexError` in command name extraction from decorator lines:
+  * Normalize double quotes to single quotes before parsing `name=` parameter
+  * Add bounds check to prevent `list index out of range` when splitting
+  * Log warning and skip malformed command decorators instead of crashing
+
+# [4.3.12] - 2026-01-05
+* Fix `TypeError` in `allowed_choices` extraction for Click Choice parameters:
+  * Convert integer and boolean choices to strings for JSON serialization
+  * Extract `.value` from Enum choices instead of full enum representation (e.g., `'KEYCLOAK'` instead of `'SettingType.KEYCLOAK'`)
+
+# [4.3.11] - 2025-12-15
+* Add `default_value` field extraction for command parameters in metadata:
+  * Exclude flags (`is_flag: true` implies default `false`)
+  * Exclude empty collections (implied default for `multiple=True` options)
+  * Handle Click's internal Sentinel objects to prevent JSON serialization errors
+
+# [4.3.10] - 2025-12-05
+* Add `allowed_choices` field extraction for Click Choice type parameters in command metadata
+
+# [4.3.9] - 2025-12-04
+* Fix parsing issue during installation of the `srecli` module:
+  * Add parentheses balance tracking to correctly detect function definition end
+  * Add handling for commands without docstrings (graceful warning instead of infinite loop)
+
 # [4.3.8] - 2025-11-11
 * Add `MODULAR_CLI_VAULT_TOKEN` and `MODULAR_CLI_VAULT_ADDR` to the `.env.example` file
 * Improve `open_json_file` with user-friendly error messages
