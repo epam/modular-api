@@ -1,14 +1,26 @@
 import multiprocessing
+import json
+import os
 
 import bottle
 import click
 
-from modular_api.helpers.decorators import BaseCommand, ResponseDecorator
+from modular_api.helpers.constants import (
+    API_MODULE_FILE,
+    CLI_PATH_KEY,
+    MODULE_NAME_KEY,
+)
+from modular_api.services.module_validator import (
+    validate_module_cli,
+    resolve_root_group_name,
+)
+
+from modular_api.helpers.decorators import BaseCommand, ResponseDecorator, \
+    CommandResponse
 from modular_api.helpers.exceptions import ModularApiBadRequestException
 from modular_api.helpers.log_helper import init_console_handler, get_logger
 from modular_api.index import WSGIApplicationBuilder, initialize
-from modular_api.services import SERVICE_PROVIDER
-from modular_api.services import SP
+from modular_api.services import SERVICE_PROVIDER, SP
 from modular_api.services.install_service import (
     check_and_describe_modules,
     install_module,
@@ -94,12 +106,141 @@ def run(host: str, port: int, prefix: str, gunicorn: bool, workers: int,
 @click.option('--module_path', '-path', type=str,
               required=True,
               help='Path to needed tool source files')
+@click.option('--force', '-f', is_flag=True,
+              help='Install module even if CLI validation errors are found')
+@click.option('--recommendations', '-rec', is_flag=True,
+              help='Show additional code quality recommendations '
+                   'during pre-install validation')
 @ResponseDecorator(click.echo, 'Can not install module')
-def install(module_path):
+def install(module_path, force, recommendations):
     """
     Install module
     """
-    return install_module(module_path)
+    return install_module(
+        module_path,
+        force=force,
+        extended_checks=recommendations,
+    )
+
+@modular.command(cls=BaseCommand, name='validate')
+@click.option('--module_path', '-path', type=str,
+              required=True,
+              help='Path to the module to validate '
+                   '(same path as for install)')
+@click.option('--strict', '-s', is_flag=True,
+              help='Treat warnings as errors (exit code 1)')
+@click.option('--recommendations', '-rec', is_flag=True,
+              help='Include additional code quality recommendations '
+                   '(type hints, return types, param alignment, etc.)')
+@ResponseDecorator(click.echo, 'Can not validate module')
+def validate(module_path, strict, recommendations):
+    """
+    Validate module CLI structure without installing.
+
+    Checks naming conventions, hierarchy integrity, group/command
+    consistency, and modular-api commands_generator compatibility.
+
+    Use before 'modular install' to catch structural issues early,
+    or in CI/CD pipelines with --strict to gate merges.
+
+    Examples:
+
+    1. Basic validation:
+    modular validate --module_path /path/to/module
+
+    2. Strict mode for CI (warnings = failure):
+    modular validate --module_path /path/to/module --strict
+
+    3. With code quality recommendations:
+    modular validate --module_path /path/to/module --recommendations
+    """
+    if not os.path.isdir(module_path):
+        raise ModularApiBadRequestException(
+            f"'{module_path}' is not a directory"
+        )
+
+    api_module_file = os.path.join(module_path, API_MODULE_FILE)
+    if not os.path.isfile(api_module_file):
+        raise ModularApiBadRequestException(
+            f"No {API_MODULE_FILE} found in '{module_path}'"
+        )
+
+    with open(api_module_file) as f:
+        api_config = json.load(f)
+
+    if CLI_PATH_KEY not in api_config:
+        raise ModularApiBadRequestException(
+            f"'{CLI_PATH_KEY}' not found in {API_MODULE_FILE}"
+        )
+
+    cli_path = os.path.join(
+        module_path,
+        *api_config[CLI_PATH_KEY].split('/')
+    )
+    if not os.path.isdir(cli_path):
+        raise ModularApiBadRequestException(
+            f"CLI path '{cli_path}' is not a directory"
+        )
+
+    # Resolve root group name from setup file
+    setup_files = ["pyproject.toml", "setup.cfg", "setup.py"]
+    setup_file_path = None
+    for sf in setup_files:
+        candidate = os.path.join(module_path, sf)
+        if os.path.isfile(candidate):
+            setup_file_path = candidate
+            break
+
+    if not setup_file_path:
+        raise ModularApiBadRequestException(
+            "No setup file (pyproject.toml, setup.cfg, setup.py) found"
+        )
+
+    try:
+        root_group_name = resolve_root_group_name(setup_file_path)
+    except Exception as e:
+        raise ModularApiBadRequestException(
+            f"Could not resolve root group name from "
+            f"{os.path.basename(setup_file_path)}: {e}"
+        )
+
+    module_name = api_config.get(MODULE_NAME_KEY, 'unknown')
+
+    result = validate_module_cli(
+        cli_path=cli_path,
+        root_group_name=root_group_name,
+        extended_checks=recommendations,
+    )
+
+    can_pass = result.can_install_strict if strict else result.can_install
+    mode = "strict" if strict else "standard"
+
+    header = (
+        f"Validation {{verdict}} ({mode} mode) for '{module_name}'. "
+        f"Scanned {len(result.scanned_files)} file(s)."
+    )
+
+    # No issues at all - terse success
+    if not result.issues:
+        return CommandResponse(
+            message=header.format(verdict="PASSED")
+        )
+
+    report = result.format_report(
+        show_warnings=bool(result.warnings),
+        show_infos=recommendations,
+        strict=strict,
+    )
+
+    if can_pass:
+        # Passed but has warnings/infos worth showing
+        return CommandResponse(
+            message=f"{header.format(verdict='PASSED')}\n{report}"
+        )
+    else:
+        raise ModularApiBadRequestException(
+            f"{header.format(verdict='FAILED')}\n{report}"
+        )
 
 
 @modular.command(cls=BaseCommand)
@@ -219,7 +360,6 @@ def policy_simulator(user, group, policy, command):
         requested_command=command)
 
 
-modular.add_command(install)
 modular.add_command(user)
 modular.add_command(policy)
 modular.add_command(group)

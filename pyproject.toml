@@ -25,7 +25,7 @@ dependencies = [
     'limits==5.6.0',
     'modular-sdk==7.1.8',
     'python-dotenv==1.0.1',
-    'modular-cli-sdk==3.1.2'
+    'modular-cli-sdk==3.1.4',
 ]
 [dependency-groups]
 dev = [

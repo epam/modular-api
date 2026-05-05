@@ -210,7 +210,11 @@ class UsageService(AbstractUsageService):
 
     # main methods ============================================================
 
-    def save_stats(self, request: LocalRequest, payload: dict) -> None:
+    def save_stats(
+            self,
+            request: LocalRequest,
+            payload: dict,
+    ) -> None:
         module_mount_point = self.__resolve_module_mount_point(request)
         parts = request.path.strip('/').split('/')
         if len(parts) >= 3:
@@ -233,6 +237,14 @@ class UsageService(AbstractUsageService):
         if not product:
             event_type = EVENT_TYPE_API
             product = self.modules_info.get(module_mount_point)
+
+        if not product:
+            _LOG.warning(
+                'Could not resolve product for path %s. Skipping stats',
+                request.path
+            )
+
+            return
 
         stats_doc, current_event_ts, current_event_date, prev_item_id = (
             self.__make_stats_item(module_mount_point, group_name,

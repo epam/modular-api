@@ -1,4 +1,4 @@
-FROM public.ecr.aws/docker/library/python:3.10-slim as compile-image
+FROM public.ecr.aws/docker/library/python:3.10-slim AS compile-image
 
 ARG M3_MODULAR_ADMIN_PATH=.
 

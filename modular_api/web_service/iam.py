@@ -19,9 +19,11 @@ def policy_sort(policy_list: list) -> dict:
     # todo check for old-style policies, remove after 3.85 prod update
     for item in policy_list:
         if item.get('Group') or item.get('MountPoint'):
-            _LOG.error(f'Found old style RBAC v1 policy. Some policy still '
-                       f'contains "MountPoint":"{item.get("MountPoint")}" and/or'
-                       f' "Group":"{item.get("Group")}"')
+            _LOG.error(
+                f'Found old style RBAC v1 policy. Some policy still contains '
+                f'"MountPoint":"{item.get("MountPoint")}" and/or '
+                f'"Group":"{item.get("Group")}"'
+            )
             raise ModularApiConfigurationException(
                 'Invalid policies detected. Please contact support team'
             )
@@ -170,8 +172,14 @@ def check_subgroup_command(*args) -> bool:
     return False
 
 
-def check_permission(policy: list, module: str, command=None, group=None,
-                     subgroup=None, atype: str = 'default') -> bool:
+def check_permission(
+        policy: list,
+        module: str,
+        command=None,
+        group=None,
+        subgroup=None,
+        atype: str = 'default',
+) -> bool:
     """
     1. Check user permissions by "Deny" rules
     2. Check user permissions by "Allow" rules
@@ -218,157 +226,202 @@ def check_permission(policy: list, module: str, command=None, group=None,
     return True
 
 
-def filter_meta_by_deny_priority(policy: list, all_meta: dict) -> dict:
+# ── recursive deny helpers ──────────────────────────────────────────
+
+def _deny_filter_body(
+        denied: set,
+        module_prefix: str,
+        original_body: dict,
+        filtered_body: dict,
+        group_path: str,
+) -> None:
     """
-    Check user permissions by "Deny" rules:
-    1. Check if module allowed
-    2. Check if command in module allowed
-    3. Check if group allowed
-    4. Check if command in group allowed
-    5. Check if subgroup allowed
-    6. Check if command in subgroup allowed
+    Recursively walk *original_body* and delete denied entries from
+    the corresponding *filtered_body* (which is a deep-copy).
+
+    Policy format examples that are checked:
+        /{module}@{group_path}:*          - deny entire group / sub-group
+        /{module}@{group_path}:{command}  - deny single command
+        /{module}@{command}               - deny root-level command
+    """
+    bd = 'body'
+    for item_name, item_content in original_body.items():
+        if item_name not in filtered_body:
+            continue
+
+        if item_content.get('type') == 'group':
+            new_path = (
+                f'{group_path}/{item_name}' if group_path else item_name
+            )
+            # whole group denied?
+            if f'{module_prefix}{new_path}:*' in denied:
+                del filtered_body[item_name]
+                continue
+            # recurse into children
+            child_body = item_content.get(bd)
+            if child_body and bd in filtered_body.get(item_name, {}):
+                _deny_filter_body(
+                    denied=denied,
+                    module_prefix=module_prefix,
+                    original_body=child_body,
+                    filtered_body=filtered_body[item_name][bd],
+                    group_path=new_path,
+                )
+        else:
+            # leaf command
+            if group_path:
+                check = f'{module_prefix}{group_path}:{item_name}'
+            else:
+                check = f'{module_prefix}{item_name}'
+            if check in denied:
+                del filtered_body[item_name]
+
+
+def filter_meta_by_deny_priority(
+        sorted_policy: dict,
+        all_meta: dict,
+) -> dict:
+    """
+    Remove every resource that is explicitly **denied**.
+    Supports arbitrary group nesting depth.
     """
     bd = 'body'
     user_commands = copy.deepcopy(all_meta)
-    for module, module_content in all_meta.items():
+    denied = sorted_policy[DENY]
 
-        allow_module = check_permission(policy=policy, module=module)
-        if not allow_module:
+    if not denied:
+        return user_commands
+
+    # global deny -> nothing is available
+    if any(v.startswith('/*@') for v in denied):
+        return {}
+
+    for module, module_content in all_meta.items():
+        module_prefix = f'{module}@'
+
+        # whole module denied
+        if f'{module_prefix}*' in denied:
             del user_commands[module]
             continue
 
-        for item, item_content in module_content[bd].items():
-            if item_content.get('type') == 'group':
-                group = item
-                allow_group = check_permission(
-                    policy=policy, module=module, group=group)
-                if not allow_group:
-                    del user_commands[module][bd][group]
-                    continue
-
-                for group_item, group_content in item_content[bd].items():
-                    if group_content.get('type') == 'group':
-                        subgroup = group_item
-                        allow_subgroup = check_permission(
-                            policy=policy, module=module,
-                            group=group, subgroup=subgroup)
-                        if not allow_subgroup:
-                            del user_commands[module][bd][group][bd][subgroup]
-                            continue
-
-                        for subgroup_item, subgroup_content in group_content[
-                            bd].items():
-                            subgroup = group_item
-                            cmd = subgroup_item
-                            allow_sub_command = check_permission(
-                                policy=policy, module=module,
-                                group=group, subgroup=subgroup, command=cmd)
-                            if not allow_sub_command:
-                                del user_commands[module][bd][group][bd][subgroup][bd][cmd]
-
-                    else:
-                        cmd = group_item
-                        allow_group_command = check_permission(
-                            policy=policy, module=module, group=group,
-                            command=cmd)
-                        if not allow_group_command:
-                            del user_commands[module][bd][group][bd][cmd]
-
-            else:
-                cmd = item
-                allow_module_command = check_permission(
-                    policy=policy, module=module, command=cmd)
-                if not allow_module_command:
-                    del user_commands[module][bd][cmd]
+        _deny_filter_body(
+            denied=denied,
+            module_prefix=module_prefix,
+            original_body=module_content[bd],
+            filtered_body=user_commands[module][bd],
+            group_path='',
+        )
 
     return user_commands
 
 
-def filter_meta_by_allow_priority(policy: list, all_meta: dict) -> dict:
+# ── recursive allow helpers ─────────────────────────────────────────
+
+def _allow_filter_body(
+        allowed: set,
+        module_prefix: str,
+        original_body: dict,
+        filtered_body: dict,
+        group_path: str,
+) -> None:
     """
-    Check user permissions by "Allow" rules:
-    1. Check if module allowed
-    2. Check if command in module allowed
-    3. Check if group allowed
-    4. Check if command in group allowed
-    5. Check if subgroup allowed
-    6. Check if command in subgroup allowed
+    Recursively walk *original_body* and delete entries from the
+    corresponding *filtered_body* that are **not** allowed.
+
+    Policy format examples that are checked:
+        /{module}@{group_path}:*          - allow entire group / sub-group
+        /{module}@{group_path}:{command}  - allow single command
+        /{module}@{command}               - allow root-level command
+    """
+    bd = 'body'
+    for item_name, item_content in original_body.items():
+        if item_name not in filtered_body:
+            continue
+
+        if item_content.get('type') == 'group':
+            new_path = (
+                f'{group_path}/{item_name}' if group_path else item_name
+            )
+
+            # entire group explicitly allowed -> keep everything below
+            if f'{module_prefix}{new_path}:*' in allowed:
+                continue
+
+            # is *anything* under this path allowed?  (prefix check)
+            # use separator-aware matching to avoid false positives
+            # e.g. "task" must not match "taskmanager"
+            prefix = f'{module_prefix}{new_path}'
+            if not any(
+                v.startswith(prefix + ':') or v.startswith(prefix + '/')
+                for v in allowed
+            ):
+                del filtered_body[item_name]
+                continue
+
+            # recurse into children
+            child_body = item_content.get(bd)
+            if child_body and bd in filtered_body.get(item_name, {}):
+                _allow_filter_body(
+                    allowed=allowed,
+                    module_prefix=module_prefix,
+                    original_body=child_body,
+                    filtered_body=filtered_body[item_name][bd],
+                    group_path=new_path,
+                )
+        else:
+            # leaf command
+            if group_path:
+                check = f'{module_prefix}{group_path}:{item_name}'
+            else:
+                check = f'{module_prefix}{item_name}'
+            if check not in allowed:
+                del filtered_body[item_name]
+
+
+def filter_meta_by_allow_priority(
+        sorted_policy: dict,
+        all_meta: dict,
+) -> dict:
+    """
+    Keep only resources that are explicitly **allowed**.
+    Supports arbitrary group nesting depth.
     """
     bd = 'body'
     user_commands = copy.deepcopy(all_meta)
+    allowed = sorted_policy[ALLOW]
+
+    # global allow -> keep everything
+    if any(v.startswith('/*@') for v in allowed):
+        return user_commands
 
     for module, module_content in all_meta.items():
+        module_prefix = f'{module}@'
 
-        allow_entire_module = check_permission(policy=policy, module=module,
-                                               atype='entire_module')
-        if allow_entire_module:
+        # entire module allowed
+        if f'{module_prefix}*' in allowed:
             continue
 
-        allow_in_module = check_permission(policy=policy, module=module,
-                                           atype='module')
-        if not allow_in_module:
+        # nothing in this module allowed at all
+        if not any(v.startswith(module_prefix) for v in allowed):
             del user_commands[module]
             continue
 
-        for item, item_content in module_content[bd].items():
-            if item_content.get('type') == 'group':
-                group = item
-                allow_entire_group = check_permission(
-                    policy=policy, module=module, group=group, atype='entire_group')
-                if allow_entire_group:
-                    continue
-                allow_in_group = check_permission(
-                    policy=policy, module=module, group=group, atype='group')
-                if not allow_in_group:
-                    del user_commands[module][bd][group]
-                    continue
-
-                for group_item, group_content in item_content[bd].items():
-                    if group_content.get('type') == 'group':
-                        subgroup = group_item
-                        allow_entire_subgroup = check_permission(
-                            policy=policy, module=module,
-                            group=group, subgroup=subgroup, atype='entire_subgroup')
-                        if allow_entire_subgroup:
-                            continue
-                        allow_in_subgroup = check_permission(
-                            policy=policy, module=module,
-                            group=group, subgroup=subgroup, atype='subgroup')
-                        if not allow_in_subgroup:
-                            del user_commands[module][bd][group][bd][subgroup]
-                            continue
-
-                        for subgroup_item, subgroup_content in group_content[
-                            bd].items():
-                            subgroup = group_item
-                            cmd = subgroup_item
-                            allow_sub_command = check_permission(
-                                policy=policy, module=module,
-                                group=group, subgroup=subgroup, command=cmd,
-                                atype='subgroup_command')
-                            if not allow_sub_command:
-                                del user_commands[module][bd][group][bd][subgroup][bd][cmd]
-                    else:
-                        cmd = group_item
-                        allow_group_command = check_permission(
-                            policy=policy, module=module, group=group,
-                            command=cmd, atype='group_command')
-                        if not allow_group_command:
-                            del user_commands[module][bd][group][bd][cmd]
-            else:
-                cmd = item
-                allow_module_command = check_permission(
-                    policy=policy, module=module, command=cmd,
-                    atype='root_command')
-                if not allow_module_command:
-                    del user_commands[module][bd][cmd]
+        _allow_filter_body(
+            allowed=allowed,
+            module_prefix=module_prefix,
+            original_body=module_content[bd],
+            filtered_body=user_commands[module][bd],
+            group_path='',
+        )
 
     return user_commands
 
 
 # todo refactor mount point to be set by module
 def filter_commands_by_permissions(
-        available_commands: dict, group_policy: list) -> dict:
+        available_commands: dict,
+        group_policy: list,
+) -> dict:
     """
     Filter for user permissions. The rules summary described below:
     1) Deny effect has more priority than Allow;
@@ -452,6 +505,15 @@ def filter_commands_by_permissions(
                 "group_name_N/$subgroup_name_N:$command_name_N",
             ]
         }
+    10) Arbitrary depth group rule (N levels):
+       {
+            "Effect": "Allow/Deny",
+            "Module": "$module_name",
+            "Resources": [
+                "g1/g2/.../gN:*",
+                "g1/g2/.../gN:$command_name",
+            ]
+        }
     """
     all_meta = copy.deepcopy(available_commands)
     if '/' in available_commands.keys():
@@ -461,11 +523,17 @@ def filter_commands_by_permissions(
         del all_meta['/']
     del available_commands
 
+    sorted_policy = policy_sort(group_policy)
+
     filtered_by_deny = filter_meta_by_deny_priority(
-        policy=group_policy, all_meta=all_meta)
+        sorted_policy=sorted_policy,
+        all_meta=all_meta,
+    )
     del all_meta
     filtered_by_allow = filter_meta_by_allow_priority(
-        policy=group_policy, all_meta=filtered_by_deny)
+        sorted_policy=sorted_policy,
+        all_meta=filtered_by_deny,
+    )
 
     user_meta = dict()
     for key, value in filtered_by_allow.items():
@@ -480,4 +548,3 @@ def filter_commands_by_permissions(
 
 def hash_user_name(user_name):
     return sha256(user_name.encode('utf-8')).hexdigest()
-
