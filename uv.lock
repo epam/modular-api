@@ -306,7 +306,7 @@ requires-dist = [
     { name = "gunicorn", specifier = "==23.0.0" },
     { name = "limits", specifier = "==5.6.0" },
     { name = "modular-cli-sdk", specifier = "==3.1.2" },
-    { name = "modular-sdk", specifier = "==7.1.4" },
+    { name = "modular-sdk", specifier = "==7.1.8" },
     { name = "packaging", specifier = ">=25" },
     { name = "prettytable", specifier = "==3.9.0" },
     { name = "pyjwt", specifier = "==2.8.0" },
@@ -341,7 +341,7 @@ wheels = [
 
 [[package]]
 name = "modular-sdk"
-version = "7.1.4"
+version = "7.1.8"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "boto3" },
@@ -352,9 +352,9 @@ dependencies = [
     { name = "pynamodb" },
     { name = "python-dateutil" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/68/13/e85c9fcd45e404ceeb5145dd84deb4426f937669b97bf0972f56ca659c7e/modular_sdk-7.1.4.tar.gz", hash = "sha256:3baab7a49b2a8dc71b0d2f7571645c6328cc81543383b66268bba54e08568a83", size = 80085, upload-time = "2025-10-17T13:22:31.578Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/da/8d/86fca4564659f9083229ded38bc789ba253af80f3b13c0c7f2233711ec90/modular_sdk-7.1.8.tar.gz", hash = "sha256:69dbcc474f9ec631f611cc42e12eda946e8de8904c3dcf7974580c634d298839", size = 81400, upload-time = "2026-01-30T13:22:11.64Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/6e/61/8b425bef34dc3f7906df135f5586c8d63329bb31efefd4994c682b9fcc46/modular_sdk-7.1.4-py3-none-any.whl", hash = "sha256:8cb02c591151c47a53a1da4bbcf825dce3bea744a21ae2e0559ea2ba931d7c59", size = 100761, upload-time = "2025-10-17T13:22:29.77Z" },
+    { url = "https://files.pythonhosted.org/packages/67/26/15c7991fe0f9ecd0e2dcad4aa4cb1a5f2df498b4d61455016e13ac135e7b/modular_sdk-7.1.8-py3-none-any.whl", hash = "sha256:2094a56289777c2edfebadf4d1573dab970c5a2f33489f5f380bc31143f89744", size = 102245, upload-time = "2026-01-30T13:22:10.323Z" },
 ]
 
 [[package]]

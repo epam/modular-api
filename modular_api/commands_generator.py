@@ -337,7 +337,6 @@ def generate_valid_commands(
         path_to_setup_file_in_module: str,
         path_to_scan: str | None = None,
         mount_point: str = '',
-        is_private_mode_enabled: bool = False,
 ) -> dict:
     # generate or compute the path to process
     _LOG.info(f'[commands] Path to scan: {path_to_scan}')
@@ -361,19 +360,9 @@ def generate_valid_commands(
     for group_file in sorted(listdir):
         group_full_name_list, group_name = \
             resolve_group_name(group_file=group_file)
-        is_private_group = (
-                isinstance(group_full_name_list, list) and
-                group_full_name_list[0] == 'private' or
-                group_full_name_list == 'private'
-        )
 
-        is_subgroup = (
-                isinstance(group_full_name_list, list) and
-                not is_private_group
-        )
+        is_subgroup = isinstance(group_full_name_list, list)
         is_root_group = root_group_name == group_name
-        if is_private_group ^ is_private_mode_enabled:
-            continue
 
         # from index.py -> get_module_group_and_associate_object
         module_spec = importlib.util.spec_from_file_location(
