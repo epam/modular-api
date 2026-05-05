@@ -351,7 +351,6 @@ def install_module(module_path):
                                   api_module_config[MODULE_NAME_KEY],
                                   *api_module_config[CLI_PATH_KEY].split('/')),
         mount_point=mount_point,
-        is_private_mode_enabled=False,
         path_to_setup_file_in_module=setup_file_path
     )
     web_service_cmd_base = os.path.join(modular_admin_path,

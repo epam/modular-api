@@ -1,5 +1,23 @@
 CHANGELOG
 
+# [4.3.19] - 2026-03-10
+* Fix private module description not appearing in CLI help output:
+  - Remove legacy `is_private_group` / `is_private_mode_enabled` XOR filtering 
+    from `generate_valid_commands` in `commands_generator.py`
+  - Remove legacy `is_private_group` filtering from `get_module_group_and_associate_object` 
+    in `index.py`
+  - Previously, `private.py` root group file was incorrectly matched by the 
+    private mode gate condition and skipped before description extraction could occur
+  - The filter was designed for a shared-directory architecture where private 
+    subgroups lived alongside regular groups; now that the private module is an 
+    isolated installed module under `modules/`, the filter is redundant and harmful
+
+# [4.3.18] - 2026-02-05
+* Add optional `modular_sdk` logger support controlled by `MODULAR_SDK_LOG_LEVEL` environment variable
+
+# [4.3.17] - 2026-02-04
+* Update library `modular-sdk` from `==7.1.4` to `==7.1.8`
+
 # [4.3.16] - 2026-01-15
 * Add comprehensive deprecation support for both commands and groups:
   - Replace single `@deprecated` decorator with separate `@deprecated_command` and `@deprecated_group` decorators
