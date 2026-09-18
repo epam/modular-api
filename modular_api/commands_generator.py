@@ -63,6 +63,40 @@ DICT_WITH_CREDS_FOR_MOCK: dict[str, Any] = {
 }
 
 
+def _extract_help_text(line: str) -> str:
+    """
+    Best-effort extraction of the ``help=...`` string from a (possibly
+    multi-line, already joined) @click.option source line.
+
+    Why this exists / why it is simple:
+      * The previous implementation did ``split[index + 1]`` after splitting
+        the line on single quotes. When help= used DOUBLE quotes (help="...")
+        the help text landed in the LAST single-quote fragment, so
+        ``index + 1`` raised IndexError. That IndexError was then logged, and
+        logging a line containing a non-ASCII char (e.g. U+2264 '<=') crashed
+        on legacy cp1252 consoles.
+      * This helper finds the first quote (single or double) right after
+        ``help=`` and reads up to the matching closing quote of the SAME kind.
+        It cannot raise (returns '' on anything unexpected) and uses no regex.
+
+    Notes:
+      * For implicitly concatenated strings (help="a" "b" "c") only the first
+        segment is returned. That is fine - this value is advisory only; the
+        authoritative description is taken later from Click introspection in
+        CommandsDefinitionsExtractor.extract().
+    """
+    if 'help=' not in line:
+        return ''
+    after = line.split('help=', 1)[1].lstrip()
+    if not after or after[0] not in "'\"":
+        return ''
+    quote = after[0]
+    end = after.find(quote, 1)
+    if end == -1:
+        return ''
+    return after[1:end].replace('*', '').strip()
+
+
 def resolve_group_name(group_file: str) -> tuple:
     file_name_wo_ext = group_file.split('.')[0]
     group_full_name_list = __resolve_group_name(file_name_wo_ext)
@@ -293,22 +327,18 @@ def _get_param_def_from_line(line: str) -> dict:
                 file_extension = [
                     extension.strip("\"'") for extension in allowed_extensions
                 ]
-            # click.File has no extension list — leave file_extension=None
+            # click.File has no extension list - leave file_extension=None
             # is_valid_file_extensions_passed() handles None by skipping check
 
         if re.match(r'^--[a-z]', part):
             param_name = str(part).replace('--', '')
         if re.match(r'^-[a-zA-Z]', part):
             alias_name = str(part).replace('-', '')
-        if 'help=' in part:
-            try:  # 'param_doc' value will not be used anymore
-                param_doc = str(split[index + 1]).replace('*', '').strip()
-            except Exception as e:
-                param_doc = ''
-                _LOG.error(
-                    f"Error type: {e.__class__.__name__}. Error message: {e}. "
-                    f"Context: {part}"
-                )
+        if 'help=' in part and param_doc is None:
+            # Extract help text from the FULL line (handles both single- and
+            # double-quoted help=). No index arithmetic -> no IndexError.
+            # 'param_doc' value is advisory only and not used downstream.
+            param_doc = _extract_help_text(line)
         if 'type' in part:
             click_type = part.split('type=', 1)[-1].split(',')[0]
             if 'Choice' in click_type:
@@ -336,7 +366,7 @@ def _get_param_def_from_line(line: str) -> dict:
         response['convert_content_to_file'] = is_path_to_file
     if file_extension:
         response['temp_file_extension'] = file_extension
-    # NOTE: no temp_file_extension when click.File — intentional
+    # NOTE: no temp_file_extension when click.File - intentional
     return response
 
 

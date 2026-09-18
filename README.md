@@ -1,6 +1,6 @@
-## Table of Contents
+# Table of Contents
 
-- [Introduction](#introduction)
+- [Preface](#preface)
 1. [General Information](#1-general-information)
    - [Key Features](#key-features)
    - [Architecture Components](#architecture-components)
@@ -67,7 +67,7 @@
 
 [//]: # ({{ pagebreak }})
 
-## Introduction
+# Preface
 
 ### About This Guide
 
@@ -92,7 +92,7 @@ This guide is designed for:
 
 [//]: # ({{ pagebreak }})
 
-## 1. General Information
+# 1. General Information
 
 Modular API is a unified facade server that allows combining different services controls under one custom API/CLI service. It provides centralized management for multiple modules through a single entry point with unified authentication, authorization, and audit capabilities.
 
@@ -115,7 +115,7 @@ Modular API provides a unified facade for multiple backend services:
 * **CLI**: Modular-CLI for command-line interactions
 * **Backend Services**: Application servers (Java, Python, Node.js). Message brokers (RabbitMQ, AWS SQS). Cloud provider APIs (AWS, Azure, Google Cloud). Internal service APIs
 * **Compute Options**: AWS Lambda, AWS Batch, EKS/Kubernetes, EC2 instances
-* **Runtimes**: Python 3.10+, Java 17, NodeJS 18.16.0
+* **Runtimes**: Python 3.14, Java 17, NodeJS 18.16.0
 * **Persistence**: AWS DynamoDB, MongoDB Atlas, AWS DocumentDB, AWS RDS, S3
 
 ### How It Works
@@ -152,13 +152,13 @@ Each module is installed separately and has its own policies and permissions.
 
 [//]: # ({{ pagebreak }})
 
-## 2. Installation and Configuration
+# 2. Installation and Configuration
 
 ### Prerequisites
 
 Before installation, ensure you have:
 
-* **Python 3.10+**
+* **Python 3.14**
 * **pip** package manager
 * **venv** or **virtualenv**
 
@@ -177,7 +177,7 @@ Download links:
 **On Linux/Mac:**
 
 ```bash
-python3.10 -m venv modular_api_venv
+python3.14 -m venv modular_api_venv
 source modular_api_venv/bin/activate
 ```
 
@@ -213,7 +213,7 @@ Modular-SDK: 7.1.4
 Modular-CLI-SDK: 3.1.0
 Installed modules:
 chef                   1.0.2
-m3admin                4.154.2
+m3admin                4.170.0
 stm                    5.9.0
 ```
 
@@ -304,7 +304,7 @@ Ensure MongoDB is running and accessible, then configure the connection URI in `
 
 [//]: # ({{ pagebreak }})
 
-## 3. Policies Management
+# 3. Policies Management
 
 Policies define permissions for groups and users. They specify which commands and resources are allowed or denied.
 
@@ -605,7 +605,7 @@ modular policy delete --policy "m3admin-deprecated"
 
 [//]: # ({{ pagebreak }})
 
-## 4. Group Management
+# 4. Group Management
 
 Groups combine multiple policies to define role-based permissions. Users are assigned to groups to inherit their permissions.
 
@@ -849,7 +849,7 @@ echo "All groups created successfully"
 
 [//]: # ({{ pagebreak }})
 
-## 5. User Management
+# 5. User Management
 
 Users authenticate to Modular API and inherit permissions from assigned groups.
 
@@ -1199,7 +1199,7 @@ modular user delete --username "contractor_expired"
 
 [//]: # ({{ pagebreak }})
 
-## 6. Modules Installation
+# 6. Modules Installation
 
 Modules extend Modular API functionality. Each module is an independent package that can be installed separately. The most commonly used module is **m3admin** (core administrative functions), which is typically deployed alongside other modules like billing, chef, and notifications.
 
@@ -1303,7 +1303,7 @@ Installed modules
 +-------------+---------+
 |     chef    |  1.0.2  |
 | ----------- | ------- |
-|   m3admin   | 4.154.2 |
+|   m3admin   | 4.170.0 |
 | ----------- | ------- |
 |     stm     |  5.9.0  |
 +-------------+---------+
@@ -1331,7 +1331,7 @@ Modular API automatically checks dependencies during installation. If a required
 
 [//]: # ({{ pagebreak }})
 
-## 7. Audit Service
+# 7. Audit Service
 
 All successful command executions are automatically logged to the ModularAudit collection for compliance and tracking.
 
@@ -1460,7 +1460,7 @@ modular audit --group "billing" --command "close_month" --limit 50
 
 [//]: # ({{ pagebreak }})
 
-## 8. First Run
+# 8. First Run
 
 ### Pre-Flight Checklist
 
@@ -1639,7 +1639,7 @@ Alternatively, Swagger can be used instead of the API meta.
 
 [//]: # ({{ pagebreak }})
 
-## 9. Modular API Schema
+# 9. Modular API Schema
 
 ### Architecture Diagram
 
@@ -1823,7 +1823,7 @@ Alternatively, Swagger can be used instead of the API meta.
 
 [//]: # ({{ pagebreak }})
 
-## 10. Annexes
+# 10. Annexes
 
 <a name="annex-1-common-use-cases"></a>
 
@@ -1846,7 +1846,7 @@ This annex provides real-world examples and workflows for common Modular API tas
 
 ```bash
 # Create virtual environment
-python3.10 -m venv /usr/local/project/modular/.api_venv
+python3.14 -m venv /usr/local/project/modular/.api_venv
 source /usr/local/project/modular/.api_venv/bin/activate
 
 # Install Modular API
@@ -2368,7 +2368,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "custom"
 description = "custom module"
-requires-python = ">=3.10"
+requires-python = ">=3.14"
 dynamic = ["version"]
 dependencies = []
 
@@ -2384,7 +2384,7 @@ where = ["."]
 [tool.pyright]
 include = ["custom_group", "custom_handler"]
 exclude = ["**/__pycache__"]
-pythonVersion = "3.10"
+pythonVersion = "3.14"
 reportIncompatibleMethodOverride = "warning"
 ```
 
@@ -2499,7 +2499,7 @@ modular group add_policy \
 
 [//]: # ({{ pagebreak }})
 
-## 11. Project Information
+# 11. Project Information
 
 ### Project Links
 
@@ -2523,13 +2523,13 @@ modular group add_policy \
 |----------------------|-------------------------------------------------------|
 | **Email**            | SupportSyndicateTeam@epam.com                         |
 | **Response Time**    | 7 calendar days (5 business days, excluding weekends) |
-| **Python Version**   | 3.10+                                                 |
+| **Python Version**   | 3.14                                                  |
 
 ### How to Report an Issue
 
 When reporting issues, provide:
 
-1. **Python version**: Modular API requires Python 3.10+
+1. **Python version**: Modular API requires Python 3.14
 2. **Modular API version**: Run `modular describe`
 3. **Clear description**: Concise issue description
 4. **Steps to reproduce**: Detailed reproduction steps
@@ -2555,6 +2555,6 @@ Please refer to the project repository for licensing information.
 
 [Content ↑](#table-of-contents)
 
-**Last Updated**: January 2025  
-**Document Version**: 2.0.0  
+**Last Updated**: June 2026  
+**Document Version**: 1.0.0  
 **Company**: EPAM

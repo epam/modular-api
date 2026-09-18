@@ -1,5 +1,38 @@
 # CHANGELOG
 
+# [4.4.0] - 2026-06-03
+* Fix `modular install` crashing on `@click.option` with double-quoted `help=`
+  text. Replaced the single-quote `split[index + 1]` logic in
+  `commands_generator.py` with a robust `_extract_help_text()` helper that
+  never raises. Added regression tests
+* Fix `UnicodeEncodeError` when logging non-ASCII help/docstrings (e.g. `≤`) on
+  `cp1252` consoles by making `log_helper.py` UTF-8-safe (UTF-8 stream handler,
+  stdout/stderr reconfigure, `encoding='utf-8'` on file handlers). This properly
+  resolves the root cause that `[4.3.22]` worked around
+* Migrate to Python 3.14 support (`requires-python = ">=3.14,<4"`):
+  - Added PyPI classifiers for Python 3.14, Apache 2.0 license, and OS independence
+  - Updated `tool.pyright.pythonVersion` from `3.10` to `3.14`
+  - Updated `tox.ini` envlist from `py37` to `py314`
+* Replaced pinned dependency versions with compatible ranges to allow broader Python 3.14 resolution:
+  - `gunicorn==23.0.0` -> `>=25.0,<27`
+  - `click==8.3.0` -> `>=8.3,<9`
+  - `tenacity==8.4.1` -> `>=8.4.0,<10`
+  - `ddtrace==3.9.4` -> `>=4,<5`
+  - `packaging>=25` -> `>=25,<27`
+  - `prettytable==3.9.0` -> `>=3.9,<4`
+  - `PyJWT==2.8.0` -> `>=2.8,<3`
+  - `python-dateutil>=2.9.0.post0` -> `>=2.9,<3`
+  - `typing-extensions>=4.10.0,<5.0.0` -> `>=4.10,<5`
+  - `limits==5.6.0` -> `>=5.6.0,<6`
+  - `python-dotenv==1.0.1` -> `>=1.0.1,<2`
+* Temporarily pinned `modular-sdk` and `modular-cli-sdk` to feature branches with Python 3.14 compatibility patches:
+  - `modular-sdk` -> `git+https://github.com/epam/modular-sdk@feature/python_314`
+  - `modular-cli-sdk` -> `git+https://github.com/epam/modular-cli-sdk@feature/python_314`
+* Updated dev dependencies to versions compatible with Python 3.14:
+  - `tox==3.24.5` -> `>=4.54.0,<5`
+  - `pyflakes==2.4.0` -> `>=3.4.0,<4`
+  - `flake8==4.0.1` -> `>=7.3.0,<8`
+
 # [4.3.26] - 2026-04-21
 * Add CLI structure validation to `modular install` that catches modular-api compatibility issues before installation:
   - Validate file naming conventions against `commands_generator.py` expectations (`__resolve_group_name()` splits on `_`, so each segment becomes a group name)
@@ -59,7 +92,7 @@ Previously an `AttributeNullError` turned the intended 400 response into a 500
 # [4.3.20] - 2026-03-19
 * Fix dependency version conflict check skipping packages with extras specifiers:
   - Add `_strip_extras()` helper using `str.partition` to normalize dependency 
-    strings (e.g. `modular-cli-sdk[hvac]==2.0.0` → `modular-cli-sdk==2.0.0`)
+    strings (e.g. `modular-cli-sdk[hvac]==2.0.0` -> `modular-cli-sdk==2.0.0`)
   - Replace `if "[" in req: continue` skip logic with extras stripping in both 
     version-pinning and version-conflict validation loops within 
     `check_module_requirements_compatibility()` in `module_service.py`

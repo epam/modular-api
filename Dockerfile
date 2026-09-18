@@ -1,4 +1,4 @@
-FROM public.ecr.aws/docker/library/python:3.10-slim AS compile-image
+FROM public.ecr.aws/docker/library/python:3.14-slim AS compile-image
 
 ARG M3_MODULAR_ADMIN_PATH=.
 
@@ -11,7 +11,7 @@ COPY $M3_MODULAR_ADMIN_PATH/modular.py $M3_MODULAR_ADMIN_PATH/entrypoint.sh /src
 
 RUN chmod +x /src/modular.py /src/entrypoint.sh
 
-FROM public.ecr.aws/docker/library/python:3.10-slim
+FROM public.ecr.aws/docker/library/python:3.14-slim
 
 ARG MODULES_PATH=./docker_modules/
 

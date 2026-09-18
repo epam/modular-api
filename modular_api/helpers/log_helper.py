@@ -3,6 +3,7 @@ os.environ["DD_TRACE_LOGGING_ENABLED"] = "true"
 import ddtrace.auto # noqa
 import logging
 import logging.config
+import sys
 from pathlib import Path
 
 from modular_api.helpers.constants import (
@@ -24,6 +25,56 @@ except ImportError:
 
 # Environment variable name for modular_sdk logging
 MODULAR_SDK_LOG_LEVEL_ENV = 'MODULAR_SDK_LOG_LEVEL'
+
+
+def _reconfigure_std_streams_to_utf8() -> None:
+    """
+    Force stdout/stderr to UTF-8 so that non-ASCII characters (e.g. '≤')
+    do not raise UnicodeEncodeError on consoles using legacy encodings
+    such as Windows cp1252.
+
+    'backslashreplace' guarantees that even un-encodable characters are
+    rendered as escapes instead of crashing the process.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding='utf-8', errors='backslashreplace')
+        except (AttributeError, ValueError):
+            # Stream is not a reconfigurable io.TextIOWrapper (e.g. it was
+            # replaced by a test capture / IDE redirect / detached stream).
+            # Non-fatal: Utf8StreamHandler below is the real safety net.
+            # Do NOT log here - logging is not configured yet at this point.
+            pass
+
+
+# Reconfigure as early as possible (before any handler writes)
+_reconfigure_std_streams_to_utf8()
+
+
+class Utf8StreamHandler(logging.StreamHandler):
+    """
+    StreamHandler that guarantees UTF-8 output and never raises on
+    encoding errors. Falls back to 'backslashreplace' so a bad character
+    can never crash the logging subsystem.
+    """
+
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            msg = self.format(record)
+            stream = self.stream
+            try:
+                stream.write(msg + self.terminator)
+            except UnicodeEncodeError:
+                # Last-resort safe encoding for legacy consoles
+                safe = (msg + self.terminator).encode(
+                    'utf-8', 'backslashreplace'
+                ).decode('utf-8', 'backslashreplace')
+                stream.write(safe)
+            self.flush()
+        except RecursionError:  # See logging.Handler.emit
+            raise
+        except Exception:  # noqa
+            self.handleError(record)
 
 
 def _get_logs_path() -> Path:
@@ -92,14 +143,23 @@ logging_config = {
             'class': 'logging.FileHandler',
             'filename': API_LOGS_FILE,
             'formatter': 'file_formatter',
+            'encoding': 'utf-8',  # <-- UTF-8 log files
         },
         'cli_file_handler': {
             'class': 'logging.FileHandler',
             'filename': CLI_LOGS_FILE,
             'formatter': 'file_formatter',
+            'encoding': 'utf-8',  # <-- UTF-8 log files
         },
         'init_handler': {
-            'class': 'logging.StreamHandler',
+            # UTF-8 safe console handler (never crashes on bad chars).
+            # Use '()' with the class object (NOT a dotted string) to avoid a
+            # circular import during dictConfig: this module is still being
+            # imported when dictConfig() runs at the bottom of this file, so
+            # resolving the string
+            # 'modular_api.helpers.log_helper.Utf8StreamHandler' would fail
+            # with: "cannot access submodule 'log_helper' ... circular import".
+            '()': Utf8StreamHandler,
             'formatter': 'init_formatter'
         }
     },
@@ -147,6 +207,6 @@ def init_console_handler():
     #  I think we should not use modules from modular_api in CLI. But
     #  for now this kludge: add StreamHandler only of server is running
     #  (this function is used only when user stars the server)
-    h = logging.StreamHandler()
+    h = Utf8StreamHandler()  # <-- UTF-8 safe
     h.setFormatter(logging.Formatter(LOGS_FORMAT))
     logging.getLogger('modular_api').addHandler(h)
