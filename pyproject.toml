@@ -6,32 +6,39 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "modular-api"
 description = "Modular API"
-requires-python = ">=3.10"
+requires-python = ">=3.14,<4"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.14",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+]
 readme = "README.md"
 dynamic = ["version"]
 dependencies = [
-    'toml==0.10.2',
-    'gunicorn==23.0.0',
-    'bottle==0.13.4',
-    'click==8.3.0',
-    'tenacity==8.4.1',
-    'ddtrace==3.9.4',
-    'packaging>=25',
-    'prettytable==3.9.0',
-    'PyJWT==2.8.0',
-    'pynamodb==6.1.0',
-    'python-dateutil>=2.9.0.post0',
-    'typing-extensions>=4.10.0,<5.0.0',
-    'limits==5.6.0',
-    'modular-sdk==7.1.8',
-    'python-dotenv==1.0.1',
-    'modular-cli-sdk==3.1.4',
+    "toml==0.10.2",
+    "gunicorn>=25.0,<27",
+    "bottle==0.13.4",
+    "click>=8.3,<9",
+    "tenacity>=8.4.0,<10",
+    "ddtrace>=4,<5",
+    "packaging>=25,<27",
+    "prettytable>=3.9,<4",
+    "PyJWT>=2.8,<3",
+    "pynamodb==6.1.0",
+    "python-dateutil>=2.9,<3",
+    "typing-extensions>=4.10,<5",
+    "limits>=5.6.0,<6",
+    "modular-sdk>=8,<9",
+    "python-dotenv>=1.0.1,<2",
+    "modular-cli-sdk>=4,<5",
 ]
 [dependency-groups]
 dev = [
-    "tox==3.24.5",
-    "pyflakes==2.4.0",
-    "flake8==4.0.1"
+    "tox>=4.54.0,<5",
+    "pyflakes>=3.4.0,<4",
+    "flake8>=7.3.0,<8",
 ]
 
 [project.scripts]
@@ -49,7 +56,7 @@ include = ["modular_api", "modular_api_cli"]
 exclude = [
     "**/__pycache__",
 ]
-pythonVersion = "3.10"
+pythonVersion = "3.14"
 reportIncompatibleMethodOverride = "warning"
 
 [tool.ruff]
