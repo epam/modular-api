@@ -1,5 +1,11 @@
 # CHANGELOG
 
+# [4.4.2] - 2026-08-26
+* Sync version with `modular-cli` 4.4.2
+
+# [4.4.1] - 2026-07-31
+* Sync version with `modular-cli` 4.4.1
+
 # [4.4.0] - 2026-06-03
 * Fix `modular install` crashing on `@click.option` with double-quoted `help=`
   text. Replaced the single-quote `split[index + 1]` logic in
